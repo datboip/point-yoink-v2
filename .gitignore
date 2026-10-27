@@ -1,0 +1,41 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# secrets / env / logs - never commit
+.env
+.env.*
+*.log
+*.pem
+*.key
+id_rsa
+id_ed25519
+*.p12
+
+# local runtime / user data - never commit scans, exports, or configs
+*.ply
+*.stl
+*.obj
+*.glb
+*.zip
+*.revo
+revopoint-scans*/
+scans/
+exports/
+config.json
+
+# deb build output
+packaging/build/
+packaging/build2/
+# internal design notes, mockups, device reference - local only
+dev/
+brag-output*/
+
+# demo videos: the GIFs are committed, the MP4s are not
+docs/img/**/*.mp4
+scanner/overlay_check.png
+app2/design/checks/

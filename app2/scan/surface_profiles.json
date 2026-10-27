@@ -1,0 +1,264 @@
+{
+  "near": {
+    "noise_sigma_mm": 0.12105396422857886,
+    "pixel_pitch_mm": 0.28327760840303756,
+    "frames": 6401,
+    "gains": [
+      {
+        "gain": 1,
+        "frames": 2804,
+        "fill": 0.3398333333333333,
+        "noise_mm": 0.12105396422856167,
+        "ir_dark": 0.17225625,
+        "ir_clip": 0.0
+      },
+      {
+        "gain": 2,
+        "frames": 22,
+        "fill": 0.3954270833333333,
+        "noise_mm": 0.24210792845715773,
+        "ir_dark": 0.14052916666666665,
+        "ir_clip": 0.00048125
+      },
+      {
+        "gain": 4,
+        "frames": 452,
+        "fill": 0.6160510416666667,
+        "noise_mm": 0.12105396422856167,
+        "ir_dark": 0.03803854166666667,
+        "ir_clip": 0.0015645833333333332
+      },
+      {
+        "gain": 7,
+        "frames": 1182,
+        "fill": 0.44686770833333334,
+        "noise_mm": 0.12105396422859609,
+        "ir_dark": 0.07590833333333333,
+        "ir_clip": 0.00160625
+      },
+      {
+        "gain": 8,
+        "frames": 407,
+        "fill": 0.30391666666666667,
+        "noise_mm": 0.18158094634285973,
+        "ir_dark": 0.11098541666666667,
+        "ir_clip": 0.0010145833333333333
+      },
+      {
+        "gain": 9,
+        "frames": 1534,
+        "fill": 0.37683229166666665,
+        "noise_mm": 0.18158094634285973,
+        "ir_dark": 0.05513333333333333,
+        "ir_clip": 0.0015739583333333335
+      }
+    ],
+    "presets": {
+      "Normal": {
+        "gain": 4,
+        "auto_gain_bounds": [
+          1,
+          9
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 4,
+          "frames": 452,
+          "fill": 0.6160510416666667,
+          "noise_mm": 0.12105396422856167,
+          "ir_dark": 0.03803854166666667,
+          "ir_clip": 0.0015645833333333332
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.02,
+          "dark_max": 0.1
+        }
+      },
+      "Dark": {
+        "gain": 7,
+        "auto_gain_bounds": [
+          4,
+          9
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 7,
+          "frames": 1182,
+          "fill": 0.44686770833333334,
+          "noise_mm": 0.12105396422859609,
+          "ir_dark": 0.07590833333333333,
+          "ir_clip": 0.00160625
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.05,
+          "dark_max": 0.05
+        }
+      },
+      "Shiny": {
+        "gain": 1,
+        "auto_gain_bounds": [
+          1,
+          4
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 1,
+          "frames": 2804,
+          "fill": 0.3398333333333333,
+          "noise_mm": 0.12105396422856167,
+          "ir_dark": 0.17225625,
+          "ir_clip": 0.0
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.005,
+          "dark_max": 0.2
+        }
+      },
+      "Sprayed": {
+        "gain": 2,
+        "auto_gain_bounds": [
+          1,
+          3
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 2,
+          "frames": 22,
+          "fill": 0.3954270833333333,
+          "noise_mm": 0.24210792845715773,
+          "ir_dark": 0.14052916666666665,
+          "ir_clip": 0.00048125
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.01,
+          "dark_max": 0.2
+        }
+      }
+    },
+    "rule": "Saved live frames only; duplicate FarLive2 excluded. Normal: highest median fill. Dark: least black IR. Shiny: least clipping then least noise. Sprayed: lowest observed gain. Cross-angle observations do not establish causal gain improvements. Fill light is a visible starting preference, with no hardware efficacy claim. Existing geometry filter floor retained; 6 sigma noise span can widen it. Projector unchanged.",
+    "evidence_capture_count": 10
+  },
+  "far": {
+    "noise_sigma_mm": 0.12105396422856167,
+    "pixel_pitch_mm": 0.4769749487988164,
+    "frames": 342,
+    "gains": [
+      {
+        "gain": 1,
+        "frames": 342,
+        "fill": 0.061536458333333335,
+        "noise_mm": 0.12105396422856167,
+        "ir_dark": 0.2718260416666667,
+        "ir_clip": 0.0
+      }
+    ],
+    "presets": {
+      "Normal": {
+        "gain": 1,
+        "auto_gain_bounds": [
+          1,
+          1
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 1,
+          "frames": 342,
+          "fill": 0.061536458333333335,
+          "noise_mm": 0.12105396422856167,
+          "ir_dark": 0.2718260416666667,
+          "ir_clip": 0.0
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.02,
+          "dark_max": 0.1
+        }
+      },
+      "Dark": {
+        "gain": 1,
+        "auto_gain_bounds": [
+          1,
+          1
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 1,
+          "frames": 342,
+          "fill": 0.061536458333333335,
+          "noise_mm": 0.12105396422856167,
+          "ir_dark": 0.2718260416666667,
+          "ir_clip": 0.0
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.05,
+          "dark_max": 0.05
+        }
+      },
+      "Shiny": {
+        "gain": 1,
+        "auto_gain_bounds": [
+          1,
+          1
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 1,
+          "frames": 342,
+          "fill": 0.061536458333333335,
+          "noise_mm": 0.12105396422856167,
+          "ir_dark": 0.2718260416666667,
+          "ir_clip": 0.0
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.005,
+          "dark_max": 0.2
+        }
+      },
+      "Sprayed": {
+        "gain": 1,
+        "auto_gain_bounds": [
+          1,
+          1
+        ],
+        "fill_light": false,
+        "depth_jump_mm": 3.0,
+        "range_margin_mm": 0.363161892685685,
+        "projector": "unchanged",
+        "evidence": {
+          "gain": 1,
+          "frames": 342,
+          "fill": 0.061536458333333335,
+          "noise_mm": 0.12105396422856167,
+          "ir_dark": 0.2718260416666667,
+          "ir_clip": 0.0
+        },
+        "auto_gain_rule": {
+          "clip_max": 0.01,
+          "dark_max": 0.2
+        }
+      }
+    },
+    "rule": "Saved live frames only; duplicate FarLive2 excluded. Normal: highest median fill. Dark: least black IR. Shiny: least clipping then least noise. Sprayed: lowest observed gain. Cross-angle observations do not establish causal gain improvements. Fill light is a visible starting preference, with no hardware efficacy claim. Existing geometry filter floor retained; 6 sigma noise span can widen it. Projector unchanged.",
+    "evidence_capture_count": 1
+  }
+}

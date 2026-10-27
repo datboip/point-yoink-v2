@@ -1,0 +1,20 @@
+# PointYoink 2.0 (python -m app2). Tested 2026-10-12 on Python 3.12 in a clean venv.
+# packaging/setup_window.py installs the same pins in parts; keep both in step.
+PySide6_Essentials==6.11.2
+numpy==2.4.2
+scipy==1.17.1
+PyOpenGL==3.1.10
+trimesh==5.1.0
+pillow==12.3.0
+lz4==4.4.5
+threadpoolctl==3.6.0
+psutil==7.2.2
+fast_simplification==0.2.0
+# 3MF export (trimesh)
+networkx==3.6.1
+lxml==5.2.1
+# 3D engine: open3d includes the NVIDIA GPU build; on a PC without one use open3d-cpu==0.19.0 instead
+open3d==0.19.0
+pymeshlab==2025.7.post1
+# camera views, bed dots, video thumbnails
+opencv-python-headless==5.0.0.93

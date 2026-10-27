@@ -1,0 +1,147 @@
+{
+  "miraco": {
+    "version": 2,
+    "source_kind": "copied saved-frame measurements",
+    "source": "clip-measurements.json; metric bed fits or saved built plane plus saved poses",
+    "working_distance_mm": {
+      "near": [
+        154.60000000000002,
+        499.1
+      ],
+      "far": [
+        323.90000000000003,
+        490.1
+      ]
+    },
+    "modes": {
+      "near": {
+        "observed_distance_mm": [
+          154.60000000000002,
+          499.1
+        ],
+        "part_frames": 535,
+        "fill_quartiles": [
+          0.5998182843909777,
+          0.7117274752915123,
+          0.9186129252320931
+        ],
+        "zones": [
+          {
+            "lo": 154.60000000000002,
+            "hi": 162.592,
+            "state": "usable depth",
+            "frames": 117,
+            "median_fill": 0.6374966035685173
+          },
+          {
+            "lo": 162.592,
+            "hi": 178.57600000000002,
+            "state": "sparse depth",
+            "frames": 15,
+            "median_fill": 0.4288089153801946
+          },
+          {
+            "lo": 186.56800000000004,
+            "hi": 210.54400000000004,
+            "state": "sparse depth",
+            "frames": 10,
+            "median_fill": 0.5439915446895066
+          },
+          {
+            "lo": 210.54400000000004,
+            "hi": 218.53600000000003,
+            "state": "strong depth",
+            "frames": 209,
+            "median_fill": 0.9311932785459711
+          },
+          {
+            "lo": 218.53600000000003,
+            "hi": 226.52800000000002,
+            "state": "usable depth",
+            "frames": 138,
+            "median_fill": 0.6714556972227368
+          },
+          {
+            "lo": 226.52800000000002,
+            "hi": 234.52000000000004,
+            "state": "sparse depth",
+            "frames": 9,
+            "median_fill": 0.3860633055625435
+          },
+          {
+            "lo": 338.41600000000005,
+            "hi": 346.408,
+            "state": "sparse depth",
+            "frames": 6,
+            "median_fill": 0.5839919579785617
+          },
+          {
+            "lo": 346.408,
+            "hi": 354.40000000000003,
+            "state": "usable depth",
+            "frames": 29,
+            "median_fill": 0.6323125389208396
+          }
+        ],
+        "sides": [
+          "10122026192108",
+          "10152026012937",
+          "10152026013424"
+        ]
+      },
+      "far": {
+        "observed_distance_mm": [
+          323.90000000000003,
+          490.1
+        ],
+        "part_frames": 210,
+        "fill_quartiles": [
+          0.5649770876642417,
+          0.6994843108263633,
+          0.8062743940270295
+        ],
+        "zones": [
+          {
+            "lo": 323.90000000000003,
+            "hi": 351.6,
+            "state": "sparse depth",
+            "frames": 39,
+            "median_fill": 0.48846294478763735
+          },
+          {
+            "lo": 351.6,
+            "hi": 379.3,
+            "state": "usable depth",
+            "frames": 64,
+            "median_fill": 0.6695650093477383
+          },
+          {
+            "lo": 407.0,
+            "hi": 434.70000000000005,
+            "state": "usable depth",
+            "frames": 12,
+            "median_fill": 0.6534700499060484
+          },
+          {
+            "lo": 434.70000000000005,
+            "hi": 462.40000000000003,
+            "state": "strong depth",
+            "frames": 89,
+            "median_fill": 0.8287194244604317
+          },
+          {
+            "lo": 462.40000000000003,
+            "hi": 490.1,
+            "state": "sparse depth",
+            "frames": 6,
+            "median_fill": 0.32296503960333944
+          }
+        ],
+        "sides": [
+          "10152026011751"
+        ]
+      }
+    },
+    "note": "Observed depth fill is not a precision guarantee. Unobserved distances stay unmeasured. Current usable depth is never called too far from a specification alone."
+  }
+}

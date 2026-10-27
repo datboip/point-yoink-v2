@@ -1,0 +1,83 @@
+"""Synthetic adversarial report lines. All names and secrets here are invented."""
+
+CONTEXT = {
+    "home": "/home/ana",
+    "user": "ana",
+    "host": "scan-rig.local",
+    "roots": ["/home/ana/Scan Library"],
+    "projects": ["/home/ana/Scan Library/ProjectLive09282026192332"],
+    "extra": ["clinic-secret"],
+}
+
+# name, report line, identifying fragments to remove, useful fragments to keep
+CASES = [
+    ("known_project", "opened /home/ana/Scan Library/ProjectLive09282026192332/data/09282026222119/frame_000_0000.dph", ["ana", "09282026192332", "09282026222119"], ["frame_000_0000.dph"]),
+    ("linux_other_space", 'File "/home/Bob Lee/private part/rebuild.py", line 42, in run', ["Bob Lee", "private part"], ["line 42", "in run"]),
+    ("mac_unicode_space", "opened /Users/Maëlle Chen/Desktop/patient scan.ply", ["Maëlle Chen", "patient scan"], ["opened"]),
+    ("windows_space", r"opened C:\Users\Jöhn Doe\Documents\private part.ply", ["Jöhn Doe", "private part"], ["opened"]),
+    ("wsl_home", "opened /mnt/c/Users/Ana Doe/Documents/private part.ply", ["Ana Doe", "private part"], ["opened"]),
+    ("unc_share", r"opened \\NAS01\Ava Share\prototype.stl", ["NAS01", "Ava Share"], ["opened"]),
+    ("tilde_path", "opened ~/client-secret/part.ply", ["client-secret"], ["opened"]),
+    ("media_mount", "mounted /media/ana/BACKUP-ALPHA/scan.ply", ["BACKUP-ALPHA"], ["mounted"]),
+    ("run_media_mount", "mounted /run/media/ana/PRIVATE_DISK/model.ply", ["PRIVATE_DISK"], ["mounted"]),
+    ("home_uppercase", "USER=ANA HOME=/home/ANA/private", ["ANA", "private"], ["USER="]),
+    ("host_case", "connected to SCAN-RIG.LOCAL", ["SCAN-RIG.LOCAL"], ["connected"]),
+    ("fqdn", "connected to build.internal.example", ["build.internal.example"], ["connected"]),
+    ("custom_hostname_context", "connected to build.privatecorp", ["build.privatecorp"], ["connected to"]),
+    ("systemd_unit", "unit ana@1000.service failed", ["ana@"], ["1000.service failed"]),
+    ("ssh_user_host", "ssh://ana:secretpass@scan-rig.local/home/ana/private", ["secretpass", "scan-rig.local", "private"], []),
+    ("git_remote", "git remote git@private.example:ana/secret-repo.git", ["private.example", "secret-repo"], ["git remote"]),
+    ("email", "write ana@example.net", ["example.net"], ["write"]),
+    ("ipv4_via", "connected via 192.168.50.17", ["192.168.50.17"], ["connected via"]),
+    ("ipv4_plain", "peer 10.24.3.91 timed out", ["10.24.3.91"], ["timed out"]),
+    ("ipv6_zone", "peer fe80::1%eth0 timed out", ["fe80::1%eth0"], ["timed out"]),
+    ("ipv6_mapped", "peer ::ffff:192.168.1.5 timed out", ["::ffff:192.168.1.5", "192.168.1.5"], ["timed out"]),
+    ("mac_colon", "MAC aa:bb:cc:dd:ee:ff", ["aa:bb:cc:dd:ee:ff"], ["MAC"]),
+    ("mac_cisco", "MAC aabb.ccdd.eeff", ["aabb.ccdd.eeff"], ["MAC"]),
+    ("usb_serial", "USB VID_2b3c PID_0042 iSerial: abc123xyz987", ["abc123xyz987"], ["VID_2b3c", "PID_0042"]),
+    ("serial_plain", "scanner serial: MIR123456789", ["MIR123456789"], ["scanner serial:"]),
+    ("wifi_six_digit", "Wi-Fi share code 123456", ["123456"], ["Wi-Fi share code"]),
+    ("wifi_four_digit", "Wi-Fi share code 4821", ["4821"], ["Wi-Fi share code"]),
+    ("wifi_code_json", '{"wifi_code":123456,"frames":2727}', ["123456"], ["\"frames\":2727"]),
+    ("ssid_quoted", 'SSID="Ana MIRACO Lab" channel 6', ["Ana MIRACO Lab"], ["channel 6"]),
+    ("token_short", "api_key=sk_test_A1b2C3d4E5f6G7h8I9j0", ["A1b2C3d4E5f6G7h8I9j0"], ["api_key="]),
+    ("pairing_key", "pairing key ZX39B7Q2", ["ZX39B7Q2"], ["pairing key"]),
+    ("token_hex", "token=8bf6ade5c4046ca6d1e2f3a4b5c6d7e8f9a0b1c2", ["8bf6ade5c4046ca6d1e2"], ["token="]),
+    ("jwt", "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbmEifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c", ["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiJhbmEifQ"], ["Authorization: Bearer"]),
+    ("safe_url_query", "see https://github.com/datboip/point-yoink-v2/issues?token=abc123", ["token=abc123"], ["https://github.com/datboip/point-yoink-v2/issues"]),
+    ("safe_url_private_path", "see https://github.com/private-org/secret-repo", ["private-org", "secret-repo"], ["see"]),
+    ("safe_url_private_suffix", "see https://github.com/datboip/point-yoink-v2/issues/ana-private", ["ana-private", "private"], ["see"]),
+    ("ftp_credentials", "fetch ftp://ana:secretpass@private.example/private", ["secretpass", "private.example"], ["fetch"]),
+    ("file_url_encoded", "read file:///home/Bob%20Lee/private%20part.ply", ["Bob%20Lee", "private%20part"], ["read"]),
+    ("url_quoted_path", "read /home/Bob%20Lee/private%20part.ply", ["Bob%20Lee", "private%20part"], ["read"]),
+    ("json_blob", '{"user":"ANA","ssid":"PrivateLab","token":"shortSecret123"}', ["ANA", "PrivateLab", "shortSecret123"], ["\"user\""]),
+    ("repr_dict", "{'path': '/home/Bob Lee/private part.ply', 'side': '09282026222119'}", ["Bob Lee", "private part", "09282026222119"], ["'side':"]),
+    ("wrapped_path", "File /home/Bob\n Lee/private part.ply failed", ["Bob\n Lee", "private part"], ["failed"]),
+    ("quoted_directory_no_extension", 'cache under "/home/Bob Lee/private folder" was stale', ["Bob Lee", "private folder"], ["was stale"]),
+    ("wrapped_token", "token=sk_test_A1b2C3d4\nE5f6G7h8I9j0", ["A1b2C3d4", "E5f6G7h8I9j0"], ["token="]),
+    ("extra_literal", "note clinic-secret failed", ["clinic-secret"], ["failed"]),
+]
+
+# These have no reliable boundary or type cue. They are measured and reported,
+# but a generic scrubber cannot erase them without also erasing useful prose.
+LIMITATIONS = [
+    ("bare_person_name", "operator Bob Lee retried the scan", ["Bob Lee"]),
+    ("unquoted_extensionless_path", "opened /home/Bob Lee/private folder then retried", ["Lee/private folder"]),
+    ("bare_custom_hostname", "build.privatecorp answered", ["build.privatecorp"]),
+    ("bare_short_secret", "checksum ZX39B7Q2", ["ZX39B7Q2"]),
+]
+
+PRESERVE = [
+    ("app_version", "PointYoink 2.0.0-pre.7 Python 3.12 Qt 6.8.2 Open3D 0.19.0", ["2.0.0-pre.7", "Python 3.12", "Qt 6.8.2", "Open3D 0.19.0"]),
+    ("gpu", "NVIDIA GeForce RTX 3080/PCIe/SSE2, CUDA 12.8, GPU 0", ["NVIDIA GeForce RTX 3080/PCIe/SSE2", "CUDA 12.8", "GPU 0"]),
+    ("timing", "side.fuse took 62.6 s, 2727 frames, residual 0.4 mm", ["side.fuse", "62.6 s", "2727 frames", "0.4 mm"]),
+    ("firmware_version", "firmware 1.0.0.129 build 42", ["firmware 1.0.0.129", "build 42"]),
+    ("kernel_version", "kernel version 6.1.2.3", ["kernel version 6.1.2.3"]),
+    ("error_code", "ERROR code 4821 in side.fuse", ["ERROR code 4821", "side.fuse"]),
+    ("http_code", "HTTP code 4040 after 12.4 s", ["HTTP code 4040", "12.4 s"]),
+    ("traceback_line", 'File "scanner/stages/engine.py", line 350, in run', ["engine.py", "line 350", "in run"]),
+    ("gpu_pci", "PCI device 10de:2206, NVIDIA RTX A6000", ["10de:2206", "NVIDIA RTX A6000"]),
+    ("counts", "meshed 4756625 polygons; quality 6; margin 2.8 mm", ["4756625 polygons", "quality 6", "margin 2.8 mm"]),
+    ("missing_token_status", "token=missing during retry", ["token=missing", "during retry"]),
+    ("missing_ssid_status", "SSID: not found on this scanner", ["SSID: not found", "on this scanner"]),
+]
