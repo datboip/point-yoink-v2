@@ -144,7 +144,10 @@ class MainWindow(QMainWindow):
         from app2.qt.telemetry_panel import TelemetryPanel
         self.motion_panel = TelemetryPanel(self); self.motion_panel.hide()
         self.scan.model.motion_provider=self.motion_panel.client.snapshot
-        self.header.motion.clicked.connect(self.show_motion)
+        from app2.qt.motion_link import MotionLink
+        self.motion_link = MotionLink(self.motion_panel, lambda: self._streaming and not self._crashed, self)
+        self.motion_link.need_address.connect(self.show_motion)
+        self.header.motion.hide()                                   # Motion lives in the scanner panel now
         from app2.qt.app_menu import AboutCard, GuideCard
         self.about_card = AboutCard(self)
         self.guide_card = GuideCard(self)
@@ -345,14 +348,12 @@ class MainWindow(QMainWindow):
         elif action == "scan_steps": self.workspace.guide_button.toggle()
         elif action == "guide":
             self.about_card.dismiss(); self.keys.hide(); self.scrim.hide()
-            if self.motion_panel.isVisible(): self.motion_panel.dismiss()
             self.scan.suppress_guide(True); self.guide_card.show(); self.guide_card.raise_(); self._focus_changed(None, QApplication.focusWidget())
         elif action == "report":
             from app2.diagnostics.report_window import ReportWindow
             self._report_win = ReportWindow(self._report_data, self); self._report_win.show(); self._report_win.raise_()
         elif action == "about":
             self.guide_card.dismiss()
-            if self.motion_panel.isVisible(): self.motion_panel.dismiss()
             self.keys.hide(); self.scrim.hide()
             self.about_card.show(); self.about_card.raise_(); self._focus_changed(None, QApplication.focusWidget())
 
@@ -436,8 +437,7 @@ class MainWindow(QMainWindow):
     def show_motion(self):
         self.guide_card.dismiss()
         self.about_card.dismiss()
-        self.motion_panel.move(max(12, self.width()-self.motion_panel.width()-16), 62)
-        self.motion_panel.show(); self.motion_panel.raise_()
+        self.workspace.usage.open_panel('SCANNER', tab='Motion')     # the scanner panel's second tab
 
     def toggle_full_screen(self):
         self.showNormal() if self.isFullScreen() else self.showFullScreen()
@@ -461,7 +461,6 @@ class MainWindow(QMainWindow):
         if self.about_card.isVisible(): self.about_card.dismiss(); return
         if self.startup.isVisible(): self.startup.ready(); return
         if getattr(self, "_help_card", None) is not None and self._help_card.isVisible(): self._help_card.hide(); return
-        if self.motion_panel.isVisible(): self.motion_panel.dismiss(); return
         if self.project_picker is not None: self.project_picker.reject(); return
         if getattr(self.build, "export_dlg", None) is not None and self.build.export_dlg.isVisible(): self.build.close_export(); return
         if getattr(self, "timelapse_dlg", None) is not None and self.timelapse_dlg.isVisible(): self.timelapse_dlg.cancel(); return
@@ -900,7 +899,7 @@ class MainWindow(QMainWindow):
             except (RuntimeError, TypeError): pass
             self.imported_models.shutdown()
             self._prepare_executor.shutdown(wait=False, cancel_futures=True)
-            self.motion_panel.shutdown(); e.accept(); return
+            self.motion_link.shutdown(); self.motion_panel.shutdown(); e.accept(); return
         e.ignore()
         if self._closing: self._close_after = True; return        # the session is saving for New / Open project
         s = self.state
@@ -908,7 +907,7 @@ class MainWindow(QMainWindow):
                 not self.confirm("Build running", "A build is running. Stop it and close?"): return
         if not (s is not None and s.building) and self.build.busy and not getattr(self, "force_close", False) and \
                 not self.confirm("Build step busy", "The Build step is still working on a change. Stop it and close?"): return
-        self.motion_panel.shutdown()
+        self.motion_link.shutdown(); self.motion_panel.shutdown()
         self.build.shutdown()
         self._closing = True; self._close_after = True; self.scan.status.hint.setText("Saving every side...")
         self.session.close()
@@ -1043,7 +1042,6 @@ class MainWindow(QMainWindow):
         if self.toast.isVisible(): self.toast.place()
         if self.project_picker is not None: self.project_picker.relayout()
         self.scrim.setGeometry(self.rect())
-        if self.motion_panel.isVisible(): self.motion_panel.move(max(12, w-self.motion_panel.width()-16), 62)
         if self.keys.isVisible():
             self.keys.adjustSize(); self.keys.move((w - self.keys.width()) // 2, (h - self.keys.height()) // 2)
         if hasattr(self,"captures") and self.captures.isVisible(): self.captures.present()

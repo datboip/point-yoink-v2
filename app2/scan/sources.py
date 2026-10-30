@@ -20,12 +20,10 @@ DEPTH_DEV, COLOUR_DEV = "/dev/video0", "/dev/video2"
 DEPTH_ARGV = ["v4l2-ctl", "-d", DEPTH_DEV, "--set-fmt-video", "width=800,height=1200,pixelformat=Y16 ", "--stream-mmap", "--stream-to=-"]
 COLOUR_ARGV = ["v4l2-ctl", "-d", COLOUR_DEV, "--set-fmt-video", "width=2000,height=1500,pixelformat=MJPG", "--stream-mmap", "--stream-to=-"]
 
-# The fill LED needs a local add-on (dev/scanner_led.py, not part of the repo). Without it the LED button is off.
 try:
-    sys.path.insert(0, os.path.join(REPO, "dev"))
-    from scanner_led import set_fill_led
+    from app2.scan.scanner_led import set_fill_led
 except Exception:
-    set_fill_led = None
+    set_fill_led = None        # no LED control: the button stays off
 
 
 def no_device():

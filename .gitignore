@@ -22,8 +22,6 @@ id_ed25519
 *.obj
 *.glb
 *.zip
-*.revo
-revopoint-scans*/
 scans/
 exports/
 config.json
@@ -31,11 +29,5 @@ config.json
 # deb build output
 packaging/build/
 packaging/build2/
-# internal design notes, mockups, device reference - local only
-dev/
-brag-output*/
-
 # demo videos: the GIFs are committed, the MP4s are not
 docs/img/**/*.mp4
-scanner/overlay_check.png
-app2/design/checks/

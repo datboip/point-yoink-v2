@@ -91,12 +91,10 @@ def draw_depth_guides(rgb, d, cal, z_ref, dot=(60, 255, 60)):
     return rgb
 
 
-# The fill LED needs a local add-on (dev/scanner_led.py, not part of the repo). Without it the LED button is off.
 try:
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dev"))
-    from scanner_led import set_fill_led
+    from app2.scan.scanner_led import set_fill_led
 except Exception:
-    set_fill_led = None
+    set_fill_led = None        # no LED control: the button stays off
 
 
 def set_ir_gain(g):

@@ -2,6 +2,15 @@
 
 All notable changes to PointYoink.
 
+## 2.0.1
+
+- One scanner panel: click the SCANNER tile and it has two tabs, Use and limits and Motion. View > Scanner motion opens the same panel on the Motion tab. The old floating Motion box and header button are gone.
+- The motion stream connects by itself once the scanner is live over USB: it tries the address it remembers, then the neighbors and the rest of the Wi-Fi network, and checks that something there really sends motion data. If nothing answers it asks for the scanner's IP address once. The address is also remembered when the Wi-Fi transfer sees the scanner. Disconnect stops it from reconnecting.
+- The Motion tab shows the scanner's tilt as a horizon with a heading notch, plus a ten-second trace of heading, pitch and roll. Two steps with pictures calibrate it (stand the scanner on its base, then lay it on its front face) so pitch, roll and heading follow how you actually hold the scanner; it is remembered between runs and Clear undoes it. Set heading to here calls the way it points now 0 without touching pitch and roll. The scanner window is larger so the Motion tab does not scroll on a big screen. The scanner graph is scaled to its real frame rate.
+- Plain, Coverage and Distance now recolor the live surface right away, also while a scan is paused (they only changed the dots before).
+- The scanner's fill light control is part of the app now, so the LED button works on a fresh install.
+- Smaller: the repo's ignore list and two code comments no longer mention local-only files.
+
 ## 2.0.0
 
 - Workspace home: one ribbon (Projects, Import, Scan, Build, Edit, Export) on every page, with Cut base, Smooth, Simplify and Line-up next to Build. Build, Edit and Export stay off until a project is open.

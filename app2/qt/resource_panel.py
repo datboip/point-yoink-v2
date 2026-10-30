@@ -3,7 +3,7 @@
 import math,time
 from PySide6.QtCore import Qt,QTimer,QPointF,QPoint,QRect,QEvent
 from PySide6.QtGui import QColor,QPainter,QPainterPath,QPen
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QComboBox,QSlider,QPushButton,QTableWidget,QTableWidgetItem,QHeaderView,QWidget,QScrollArea
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QComboBox,QSlider,QPushButton,QTableWidget,QTableWidgetItem,QHeaderView,QWidget,QScrollArea,QTabWidget
 from scanner.stages import resources,runner
 from app2.qt.theme import ui_font
 
@@ -14,29 +14,44 @@ def gib(value):return value/(1<<30)
 class UsageGraph(QLabel):
     def __init__(self,parent=None):
         super().__init__(parent);self.setMinimumHeight(140);self.series=[]
+        self.floor=100.;self.unit=''           # the top of the scale (a percent for CPU, GPU and RAM; frames per second for the scanner)
         self.setAccessibleName('Live resource graph')
     def paintEvent(self,event):
         p=QPainter(self);p.fillRect(self.rect(),QColor('#161a1f'));p.setRenderHint(QPainter.RenderHint.Antialiasing)
         width,height=max(1,self.width()-20),max(1,self.height()-24)
         for values,color in self.series:
             if len(values)<2:continue
-            high=max(100.,max(values));path=QPainterPath()
+            high=max(self.floor,max(values));path=QPainterPath()
             for i,value in enumerate(values):
                 point=QPointF(10+i*width/max(1,len(values)-1),height+10-min(high,max(0,value))*height/high)
                 if i:path.lineTo(point)
                 else:path.moveTo(point)
             p.setPen(QPen(QColor(color),2));p.drawPath(path)
+        if self.unit:
+            p.setPen(QColor('#8b95a3'));p.setFont(ui_font(10))
+            high=max([self.floor]+[max(v) for v,_ in self.series if v])
+            p.drawText(14,16,'%g%s'%(round(high),self.unit));p.drawText(14,self.height()-6,'0')
 
 
 class ResourcePanel(QDialog):
     def __init__(self,tile,parent=None,sampler=None):
         super().__init__(parent);self.tile=tile;self.sampler=sampler
-        self.setWindowTitle(tile+' details');self.resize(510,660)
+        self.setWindowTitle(tile+' details');self.size_wanted=(780,1020) if tile=='SCANNER' else (510,660);self.resize(*self.size_wanted)   # the scanner's Motion tab is wide and tall enough not to scroll
         self.setObjectName('ResourceDetails_'+tile)
         self.setStyleSheet('QDialog {background:#20252c;color:#e6edf6;} QLabel {color:#e6edf6;}')
         outer=QVBoxLayout(self)
         self.body_scroll=QScrollArea(); self.body_scroll.setWidgetResizable(True); self.body_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.body_scroll.setFrameShape(QScrollArea.Shape.NoFrame); outer.addWidget(self.body_scroll,1)
+        self.body_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.tabs=None;self.motion_tab=None
+        if tile=='SCANNER':
+            # One panel for the scanner: use and limits, and the Wi-Fi motion stream beside it (View > Scanner motion opens the second tab)
+            self.tabs=QTabWidget();self.tabs.addTab(self.body_scroll,'Use and limits');outer.addWidget(self.tabs,1)
+            motion=getattr(parent,'motion_panel',None)
+            if isinstance(motion,QWidget):
+                self.motion_tab=motion;scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+                scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);scroll.setWidget(motion);motion.show()
+                self.tabs.addTab(scroll,'Motion')
+        else:outer.addWidget(self.body_scroll,1)
         body=QWidget(); layout=QVBoxLayout(body); self.body_scroll.setWidget(body)
         self.setMinimumSize(390,280)
         title=QLabel(tile+' use and limits');title.setFont(ui_font(18));layout.addWidget(title)
@@ -67,8 +82,7 @@ class ResourcePanel(QDialog):
             self.note=QLabel('Running jobs keep their current limits. A lower limit waits for them to finish.');self.note.setWordWrap(True);layout.addWidget(self.note)
             self.mode.currentIndexChanged.connect(self.update_mode);self.update_mode()
         else:
-            self.motion_button=QPushButton('Open motion details');self.motion_button.clicked.connect(lambda:getattr(self.parentWidget(),'show_motion',lambda:None)());layout.addWidget(self.motion_button)
-            self.mode.hide();self.note=QLabel('Link and motion details appear only while this app is connected.');self.note.setWordWrap(True);layout.addWidget(self.note)
+            self.mode.hide();self.note=QLabel('Link details appear only while this app is connected. Motion has its own tab and connects by itself over Wi-Fi.');self.note.setWordWrap(True);layout.addWidget(self.note)
         self.close_button=QPushButton('Close');self.close_button.clicked.connect(self.close);outer.addWidget(self.close_button)
         self.timer=QTimer(self);self.timer.timeout.connect(self.refresh);self.timer.start(1000);self.refresh()
         self._fit_gpu_controls()
@@ -99,7 +113,7 @@ class ResourcePanel(QDialog):
         if parent is None:return
         available=QRect(parent.mapToGlobal(QPoint(0,0)),parent.size()).adjusted(12,12,-12,-12)
         if self.screen() is not None:available=available.intersected(self.screen().availableGeometry().adjusted(12,12,-12,-12))
-        self.resize(min(510,available.width()),min(660,available.height()))
+        self.resize(min(self.size_wanted[0],available.width()),min(self.size_wanted[1],available.height()))
         self.move(available.center()-self.rect().center())
 
     def update_mode(self):
@@ -178,26 +192,32 @@ class ResourcePanel(QDialog):
             transfer = link_status.state.get('wifi') == 'receiving'
             self.current.setText('Scanner connected over Wi-Fi for file transfer' if transfer else 'Scanner not connected')
             self.accounting.setText('Transfer: %.1f MB/s. No live camera frame rate.'%(link_status.state.get('rate',0)/(1<<20)) if transfer else 'No live link, frame rate, or motion data.')
-            self.motion_button.setEnabled(False);self.graph.hide();self.legend.hide();self.average.hide();return
+            self.graph.hide();self.legend.hide();self.average.hide();return
         kind=getattr(source,'kind',type(source).__name__)
         link='Wi-Fi' if 'wifi' in str(kind).lower() else 'USB'
         self.current.setText('Scanner connected over '+link+'\n'+str(getattr(source,'label','')))
-        self.motion_button.setEnabled(True)
         now=time.monotonic();previous=getattr(self,'_frame_sample',None);seq=getattr(source,'seq',0)
         fps=(seq-previous[1])/max(.01,now-previous[0]) if previous else None
         self._frame_sample=(now,seq)
         motion=getattr(getattr(window,'motion_panel',None),'client',None)
         status,sample,count,age=motion.snapshot() if motion is not None else ('Disconnected',None,0,None)
-        line='Frame rate: measuring...' if fps is None else 'Frame rate: %.1f fps'%max(0,fps)
+        line='Camera: measuring...' if fps is None else 'Camera: %.1f frames per second'%max(0,fps)
         if getattr(source,'depth_dev',None):line+='\nDepth stream: '+str(source.depth_dev)
-        if sample is not None:line+='\nMotion: '+status+'; angles '+', '.join('%.1f'%v for v in sample.angles)+'; %d packets'%count
-        else:line+='\nMotion stream: '+status
-        self.accounting.setText(line);self.graph.show();self.legend.show();self.average.hide()
+        line+='\nMotion: '+status+('; %d packets'%count if sample is not None else '')
+        self.accounting.setText(line);self.graph.floor=6.;self.graph.unit=' fps';self.graph.show();self.legend.show();self.average.hide()
         self._rates=getattr(self,'_rates',[])+([max(0,fps)] if fps is not None else [])
-        self._rates=self._rates[-120:];self.graph.series=[(self._rates,'#4a9dff')];self.graph.update();self.legend.setText('Live frames per second. Motion uses the existing connected stream; this panel does not connect it.')
+        self._rates=self._rates[-120:];self.graph.series=[(self._rates,'#4a9dff')];self.graph.update();self.legend.setText('Camera frames per second over the last two minutes. In PC mode about 3 is normal; a drop to 0 means the scanner stopped sending pictures.')
+
+    def show_tab(self,name):
+        if self.tabs is None:return
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i)==name:self.tabs.setCurrentIndex(i)
 
     def closeEvent(self,event):
-        self.timer.stop();super().closeEvent(event)
+        self.timer.stop()
+        if self.motion_tab is not None and self.parentWidget() is not None:   # the window keeps the motion page for the next time
+            self.motion_tab.setParent(self.parentWidget());self.motion_tab.hide();self.motion_tab=None
+        super().closeEvent(event)
 
 
 def fusion_memory_rows(snapshot):

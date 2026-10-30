@@ -192,10 +192,11 @@ class UsageMeter(QWidget):
             event.accept(); return
         super().mousePressEvent(event)
 
-    def open_panel(self, tile):
+    def open_panel(self, tile, tab=None):
         from app2.qt.resource_panel import ResourcePanel
         if self.panel is not None: self.panel.close()
         self.panel = ResourcePanel(tile, self.window(), sampler=sampler())
+        if tab: self.panel.show_tab(tab)
         self.panel.show(); self.panel.raise_()
 
     def refresh(self):

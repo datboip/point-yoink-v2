@@ -948,6 +948,8 @@ class DeviceProjects(QFrame):
             self.code.setText(self._code_html(event['code'], event['ip']))
             self.way_b[1].set_state('#6ccf8e', 'Waiting for the scanner'); link_status.set_wifi('waiting', event['code']); self.code_box.show(); self._stage = event.get('stage')      # the code arrives after the buttons were set
             self.status.setText('Waiting for the scanner');self.progress.hide()
+        elif kind=='searching':
+            from app2.scan.scanner_ip import remember; remember(event.get('ip'))      # the scanner's address, for its motion stream
         elif kind=='connected': self.status.setText('Waiting for the scanner');self.progress.hide()
         elif kind=='received_file':
             self.root=event.get('stage') or self.root

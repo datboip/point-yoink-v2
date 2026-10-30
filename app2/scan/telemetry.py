@@ -27,6 +27,128 @@ def configured_ip():
         return ''
 
 
+def quaternion_multiply(a, b):
+    ax, ay, az, aw = a; bx, by, bz, bw = b
+    return (aw*bx + ax*bw + ay*bz - az*by, aw*by - ax*bz + ay*bw + az*bx,
+            aw*bz + ax*by - ay*bx + az*bw, aw*bw - ax*bx - ay*by - az*bz)
+
+
+def euler_degrees(q):
+    x, y, z, w = q
+    heading = math.atan2(2*(w*z+x*y), 1-2*(y*y+z*z))
+    pitch = math.asin(max(-1., min(1., 2*(w*y-z*x))))
+    roll = math.atan2(2*(w*x+y*z), 1-2*(x*x+y*y))
+    return tuple(math.degrees(v) for v in (heading, pitch, roll))
+
+
+def configured_zero():
+    """The saved level pose (a unit quaternion x, y, z, w), or None."""
+    path = Path(os.environ.get('POINTYOINK_CONFIG') or Path.home()/'.config/pointyoink/config.json')
+    try:
+        q = tuple(float(v) for v in json.loads(path.read_text()).get('motion_zero'))
+        if len(q) == 4 and all(math.isfinite(v) for v in q) and abs(math.sqrt(sum(v*v for v in q)) - 1) < 1e-3: return q
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return None
+
+
+def _config_path():
+    return Path(os.environ.get('POINTYOINK_CONFIG') or Path.home()/'.config/pointyoink/config.json')
+
+
+def _save_key(key, value):
+    """Set (or with None, remove) one top-level setting, keeping every other one."""
+    path = _config_path()
+    try: data = json.loads(path.read_text())
+    except (OSError, ValueError): data = {}
+    if not isinstance(data, dict): data = {}
+    if value is None: data.pop(key, None)
+    else: data[key] = value
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix('.motion.tmp'); tmp.write_text(json.dumps(data, indent=2)); tmp.replace(path)
+    except OSError:
+        return False
+    return True
+
+
+def save_zero(q):
+    """Remember the level pose (None forgets it), keeping every other setting."""
+    return _save_key('motion_zero', None if q is None else [float(v) for v in q])
+
+
+def _unit(v):
+    n = math.sqrt(sum(a*a for a in v))
+    return tuple(a/n for a in v) if n > 1e-9 else None
+
+
+def _dot(a, b): return sum(x*y for x, y in zip(a, b))
+
+
+def _cross(a, b): return (a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+
+
+def axes_from(flat_acceleration, down_acceleration):
+    """The scanner's own up, forward and right in the sensor's axes. Flat on its base the sensor reads gravity along
+    the scanner's up; pointed straight down it reads gravity against the scanner's forward. None when the two poses
+    do not look like those (the readings are missing, or the poses are not a quarter turn apart)."""
+    up = _unit(flat_acceleration); down = _unit(down_acceleration)
+    if up is None or down is None: return None
+    forward = tuple(-a for a in down)
+    along = _dot(up, forward)
+    if abs(along) > .4: return None
+    forward = _unit(tuple(f - along*u for f, u in zip(forward, up)))
+    return dict(up=up, forward=forward, right=_cross(forward, up))
+
+
+def body_angles(axes, acceleration, quaternion, zero):
+    """Heading, pitch, roll in degrees. Pitch is how far the scanner's forward points above level (negative: down) and
+    roll how far its right side is down, both from gravity; heading is the turn about up since the level pose."""
+    a = _unit(acceleration)
+    if a is None or axes is None: return None
+    pitch = math.degrees(math.asin(max(-1., min(1., _dot(a, axes['forward'])))))
+    roll = math.degrees(math.atan2(-_dot(a, axes['right']), _dot(a, axes['up'])))
+    x, y, z, w = quaternion if zero is None else quaternion_multiply((-zero[0], -zero[1], -zero[2], zero[3]), quaternion)
+    heading = math.degrees(2*math.atan2(_dot((x, y, z), axes['up']), w))
+    heading = (heading + 180) % 360 - 180
+    return heading, pitch, roll
+
+
+def configured_axes():
+    try:
+        d = json.loads(_config_path().read_text()).get('motion_axes')
+        axes = {k: tuple(float(v) for v in d[k]) for k in ('up', 'forward', 'right')}
+        if all(len(v) == 3 and all(math.isfinite(c) for c in v) for v in axes.values()): return axes
+    except (OSError, ValueError, TypeError, AttributeError, KeyError):
+        pass
+    return None
+
+
+def save_axes(axes):
+    return _save_key('motion_axes', None if axes is None else {k: [float(c) for c in axes[k]] for k in ('up', 'forward', 'right')})
+
+
+def mean_pose(samples):
+    """(quaternion, acceleration, spread in degrees) over a few samples held still: the average pose, and how much
+    the pose wandered while it was held (a still scanner reads under about a degree)."""
+    if not samples: raise ValueError('No samples')
+    ref = samples[0].quaternion; total = [0., 0., 0., 0.]
+    for s in samples:
+        q = s.quaternion
+        if sum(a*b for a, b in zip(q, ref)) < 0: q = tuple(-v for v in q)       # q and -q are the same turn
+        total = [a+b for a, b in zip(total, q)]
+    norm = math.sqrt(sum(v*v for v in total)) or 1.
+    mean = tuple(v/norm for v in total)
+    accel = tuple(sum(s.acceleration[k] for s in samples)/len(samples) for k in range(3))
+    spread = max(max(abs(a) for a in Sample_angles_between(mean, s.quaternion)) for s in samples)
+    return mean, accel, spread
+
+
+def Sample_angles_between(a, b):
+    x, y, z, w = a
+    return euler_degrees(quaternion_multiply((-x, -y, -z, w), b))
+
+
 @dataclass(frozen=True)
 class Sample:
     quaternion: tuple
@@ -38,11 +160,13 @@ class Sample:
     @property
     def angles(self):
         """Relative heading, pitch, roll in degrees; heading is not magnetic north."""
-        x, y, z, w = self.quaternion
-        heading = math.atan2(2*(w*z+x*y), 1-2*(y*y+z*z))
-        pitch = math.asin(max(-1., min(1., 2*(w*y-z*x))))
-        roll = math.atan2(2*(w*x+y*z), 1-2*(x*x+y*y))
-        return tuple(math.degrees(v) for v in (heading, pitch, roll))
+        return euler_degrees(self.quaternion)
+
+    def angles_from(self, zero=None):
+        """Heading, pitch, roll relative to a saved level pose (the raw angles when there is none)."""
+        if zero is None: return self.angles
+        x, y, z, w = zero
+        return euler_degrees(quaternion_multiply((-x, -y, -z, w), self.quaternion))
 
 
 def decode_packet(packet, received=None):
@@ -86,6 +210,13 @@ class TelemetryClient:
             while self._history and self._history[0].received<sample.received-self.stale_after:self._history.popleft()
             recorder=self._recorder
         if recorder is not None:recorder(sample)
+
+    def recent(self, seconds=1.):
+        """The samples from the last `seconds`, oldest first."""
+        with self._lock:
+            if not self._history: return []
+            edge = self._history[-1].received - seconds
+            return [s for s in self._history if s.received >= edge]
 
     def snapshot_at(self,now):
         with self._lock:

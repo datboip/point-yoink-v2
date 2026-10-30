@@ -48,3 +48,19 @@ def test_bar_alignment_compact_placement_and_no_camera_scroll(app,tmp_path,size)
             p.controls.auto_gain.click();app.processEvents()
             assert old==(p.left.geometry(),p.model.geometry(),p.sides.geometry())
     finally:w._really=True;w.build.shutdown();w.close();app.processEvents()
+
+
+def test_changing_the_3d_color_recolors_a_paused_surface():
+    """Surface colors are baked into the mesh with each frame; a paused scan sends none, so the buttons rebuild it."""
+    from types import SimpleNamespace as NS
+    from app2.qt.model_panel import ModelPanel
+    seen=[]
+    cloud={'F':[[0,1,2]],'P':[1]}
+    panel=NS(view=NS(set_levels=lambda l:seen.append(('levels',l))),_pending_distance_cloud=None,_last_cloud=cloud,_last_mesh=None,view_style='Surface',
+             distance_mode=NS(currentIndex=lambda:2),on_cloud=lambda c:seen.append(('cloud',c)),_refresh_overlay=lambda:None,
+             _display_levels=lambda c:'plain')
+    ModelPanel._distance_mode_changed(panel)
+    assert seen==[('cloud',cloud)]
+    seen.clear(); cloud.pop('F'); cloud['F']=None
+    ModelPanel._distance_mode_changed(panel)
+    assert seen==[('levels','plain')]            # dots: only the levels change

@@ -78,8 +78,8 @@ def test_scanner_details_never_connect_and_clear_when_disconnected(app):
     calls=[];client=NS(snapshot=lambda:('Receiving',NS(angles=(1,2,3)),4,.1),connect=lambda *args:calls.append(args))
     win=QMainWindow();win.session=NS(source=NS(running=True,kind='wifi',seq=20));win.motion_panel=NS(client=client)
     panel=ResourcePanel('SCANNER',win,sampler=NS(last={},samples=[],build_usage=NS(average={})))
-    assert 'Wi-Fi' in panel.current.text() and 'angles' in panel.accounting.text() and calls==[]
-    win.session=None;panel.refresh();assert panel.current.text()=='Scanner not connected' and 'angles' not in panel.accounting.text()
+    assert 'Wi-Fi' in panel.current.text() and 'Motion: Receiving' in panel.accounting.text() and calls==[]
+    win.session=None;panel.refresh();assert panel.current.text()=='Scanner not connected' and 'Motion: Receiving' not in panel.accounting.text()
     panel.close();win.close()
 
 
@@ -125,7 +125,6 @@ def test_scanner_panel_reports_receiving_wifi_files_without_live_camera(app,monk
     win=QMainWindow();win.session=None
     panel=ResourcePanel('SCANNER',win,sampler=NS(last={},samples=[],build_usage=NS(average={})))
     assert 'Wi-Fi for file transfer' in panel.current.text() and '2.0 MB/s' in panel.accounting.text()
-    assert not panel.motion_button.isEnabled()
     panel.close();win.close()
 
 

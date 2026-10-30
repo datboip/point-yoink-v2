@@ -375,7 +375,10 @@ class ModelPanel(QWidget):
         if self.view is None:return
         pending=getattr(self,"_pending_distance_cloud",None)
         if pending is not None and self.distance_mode.currentIndex()!=0:self.on_cloud(pending);return
-        if self._last_cloud is not None:self.view.set_levels(self._display_levels(self._last_cloud))
+        if self._last_cloud is not None:
+            cloud=self._last_cloud
+            if getattr(self,'view_style','Surface')=='Surface' and cloud.get('F') is not None:self.on_cloud(cloud)   # the surface's colors are baked in with each mesh: paused, no new frame would recolor it
+            else:self.view.set_levels(self._display_levels(cloud))
         elif self._last_mesh is not None:self.on_side_mesh(self._last_mesh)
         self._refresh_overlay()
 

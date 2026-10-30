@@ -3,7 +3,7 @@
 The window title and About also carry the code's own mark (commit, and "+" when files changed since), so a running build can always be told apart."""
 import os, subprocess
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 
 
 def _build():

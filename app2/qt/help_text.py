@@ -38,7 +38,7 @@ HELP = {
     'Connected piece': 'Selects every face joined to the selection. A thin bridge can join junk to the main part, so check the red before Delete.',
     'Fill LED': 'The scanner\'s white light. Use it on dark parts or in a dim room. After 5 minutes it asks if you still need it: Yes keeps it on 2 more minutes, and no answer in 30 seconds turns it off.',
     'YOLO Yoink': 'Builds the whole model in one go. Simple: pick a preset and press Yoink it. Advanced: pick Custom to change and save settings. Both show a summary before building.',
-    'Motion': 'Reads the scanner\'s motion sensor over WiFi. Optional: scanning works without it. The pictures still come over USB.',
+    'Motion': 'Reads the scanner\'s motion sensor over Wi-Fi. It connects by itself when the scanner is on the same network, and asks for the scanner\'s IP address if it cannot find it. Optional: scanning works without it. The pictures still come over USB.',
 }
 
 

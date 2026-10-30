@@ -840,7 +840,7 @@ class Controls(QFrame):
         words={'pending':'Sending to the scanner.','unverified':'The scanner got the request but cannot confirm the light is on.','failed':'The scanner did not take the request.','on':'On.','off':'Off.'}
         if self.led.text()!='LED':self.led.setText('LED')
         self.led.setEnabled(on)
-        self.led.setToolTip(("Turn the scanner's white light on or off (L). "+words.get(status,'')).strip() if s.has_led else "The light needs the local add-on to be set up.")
+        self.led.setToolTip(("Turn the scanner's white light on or off (L). "+words.get(status,'')).strip() if s.has_led else "The light cannot be controlled right now.")
         for b, key in ((self.below_bed, "below_bed"), (self.remove_base, "remove_base")):
             if key in btns and getattr(s, key, None) is not None:
                 self._set_checked(b, getattr(s, key)); b.setEnabled(btns[key][2])
