@@ -23,10 +23,9 @@ def _config():
 
 def remember(ip):
     """Save the scanner's address as scanner_ip, keeping every other setting."""
-    try:
-        ip = str(ipaddress.ip_address(str(ip).strip()))
-    except ValueError:
+    if not is_local(ip):
         return False
+    ip = str(ipaddress.ip_address(str(ip).strip()))
     path = _config()
     try:
         data = json.loads(path.read_text())
@@ -102,12 +101,21 @@ def speaks_motion(ip, port=PORT, connect_timeout=.4, read_timeout=1.2):
         sock.close()
 
 
+def is_local(ip):
+    """True for an address on a home or office network (private, not loopback): the scanner is never anywhere else."""
+    try:
+        a = ipaddress.ip_address(str(ip).strip())
+    except ValueError:
+        return False
+    return a.version == 4 and a.is_private and not a.is_loopback and not a.is_unspecified
+
+
 def candidates(saved='', own='', arp=None):
     """Where to look, most likely first: the remembered address, the neighbors, then the rest of the network."""
     own = own or own_ip()
     order = []
     for ip in [saved] + list(neighbors() if arp is None else arp) + subnet_hosts(own):
-        if ip and ip != own and ip not in order:
+        if ip and ip != own and ip not in order and is_local(ip):
             order.append(ip)
     return order
 

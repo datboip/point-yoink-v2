@@ -19,6 +19,8 @@ mkdir -p "$PKG/DEBIAN" "$PKG/$LIB" "$PKG/usr/bin" "$PKG/usr/share/applications" 
 
 # --- app files: what git tracks, minus tests, design prototypes and internal notes ---
 cd "$ROOT"
+left="$(git ls-files --others --exclude-standard -- app2 scanner assets '*.py')"
+if [ -n "$left" ]; then echo "These source files are not committed, so the package would leave them out:" >&2; echo "$left" >&2; exit 1; fi
 git ls-files -- app2 scanner assets '*.py' icon.png \
   | grep -vE '^(tests/|scanner/bench_)' \
   | grep -E '^(app2/|scanner/|assets/|[^/]+\.py$|icon\.png$)' \
@@ -43,6 +45,8 @@ cat > "$PKG/usr/bin/point-yoink" <<'EOF'
 # point-yoink [--setup] [app options]      --setup reopens the setup window (add or change parts)
 APP="${POINTYOINK_APP_DIR:-/usr/lib/point-yoink}"
 ENV="${XDG_DATA_HOME:-$HOME/.local/share}/pointyoink"
+PTR="${XDG_CONFIG_HOME:-$HOME/.config}/pointyoink/install_dir"      # written by the setup window when the parts live somewhere else
+[ -s "$PTR" ] && ENV="$(head -n 1 "$PTR")"
 if [ "$1" = "--setup" ]; then shift; python3 "$APP/setup_window.py" --env "$ENV" || exit 1
 elif ! python3 -c "import sys; sys.path.insert(0, '$APP'); import setup_window as s; sys.exit(0 if s.ready('$ENV') else 1)" 2>/dev/null; then
   python3 "$APP/setup_window.py" --env "$ENV" || exit 1

@@ -2,6 +2,12 @@
 
 All notable changes to PointYoink.
 
+## 2.0.2
+
+- The 2.0.1 package left out three files, so it would not start. Fixed: the package is rebuilt, and the build now stops when source files are not committed.
+- The setup window says which graphics card it found ("GPU detected: ...") or that there is none, and has a Change folder button for choosing where the downloaded parts go. The choice is remembered.
+- The motion stream only looks for the scanner on home and office network addresses, and only remembers an address of that kind.
+
 ## 2.0.1
 
 - One scanner panel: click the SCANNER tile and it has two tabs, Use and limits and Motion. View > Scanner motion opens the same panel on the Motion tab. The old floating Motion box and header button are gone.

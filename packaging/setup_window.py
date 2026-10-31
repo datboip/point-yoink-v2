@@ -7,7 +7,7 @@ folder (~/.local/share/pointyoink/venv). Runs on the system python3 with Tk (Qt 
 """
 import argparse, json, os, queue, re, shutil, subprocess, sys, threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import filedialog, ttk
 
 # Sizes are the downloads in MB (measured 2026-10-12); on disk it is about 2.9 times that. Keep the pins in step with
 # packaging/requirements.txt.
@@ -73,9 +73,33 @@ def uv_env(env):
                 UV_NO_MODIFY_PATH="1")
 
 
+def gpu_name():
+    """The first NVIDIA card's name, or '' when there is none (or no driver)."""
+    try:
+        r = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], capture_output=True, text=True, timeout=10)
+        return r.stdout.strip().splitlines()[0].strip() if r.returncode == 0 and r.stdout.strip() else ""
+    except (OSError, subprocess.SubprocessError): return ""
+
+
 def has_nvidia():
     try: return subprocess.run(["nvidia-smi", "-L"], capture_output=True, timeout=10).returncode == 0
     except (OSError, subprocess.SubprocessError): return False
+
+
+def pointer_file():
+    return os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "pointyoink", "install_dir")
+
+
+def remember_env(env, default):
+    """Where the parts live, for the launcher: a pointer file when it is not the default folder, none when it is."""
+    path = pointer_file()
+    try:
+        if os.path.abspath(env) == os.path.abspath(default):
+            if os.path.exists(path): os.remove(path)
+        else:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f: f.write(os.path.abspath(env) + "\n")
+    except OSError: pass
 
 
 def load_state(env):
@@ -98,7 +122,7 @@ def ready(env):
 
 class Setup:
     def __init__(self, root, env):
-        self.root, self.env = root, env; self.q = queue.Queue(); self.busy = False; self.ok = False
+        self.root, self.env, self.default_env = root, env, env; self.q = queue.Queue(); self.busy = False; self.ok = False
         self.state = load_state(env); have = set(self.state.get("parts", []))
         root.title("PointYoink setup"); root.configure(bg=BG); root.resizable(False, False)
         st = ttk.Style(root); st.theme_use("clam")
@@ -113,7 +137,7 @@ class Setup:
         tk.Label(f, text="PointYoink setup", bg=BG, fg=INK, font=("Sans", 16, "bold")).pack(anchor="w")
         tk.Label(f, text="One time. These are the parts PointYoink 2.0 runs on. They download once into your own folder,\n"
                          "need no admin password, and go away with the app's data folder.", bg=BG, fg=MUTED, justify="left").pack(anchor="w", pady=(4, 12))
-        gpu = has_nvidia(); self.engine = tk.StringVar(value=self.state.get("engine") or ("gpu" if gpu else "cpu"))
+        gpu = gpu_name() or has_nvidia(); self.engine = tk.StringVar(value=self.state.get("engine") or ("gpu" if gpu else "cpu"))
         self.rows = {}
         for p in PARTS:
             card = tk.Frame(f, bg=PANEL, padx=12, pady=9); card.pack(fill="x", pady=4)
@@ -128,13 +152,16 @@ class Setup:
             tagl = tk.Label(top, text=tag, bg=PANEL, fg=OK if tag == "installed" else MUTED); tagl.pack(side="right", padx=10)
             tk.Label(card, text=p["why"], bg=PANEL, fg=MUTED).pack(anchor="w", padx=(22, 0))
             if p.get("choice"):
+                tk.Label(card, text=("GPU detected: %s" % (gpu if isinstance(gpu, str) else "NVIDIA card")) if gpu else "No NVIDIA GPU detected. The CPU build builds models; live scanning needs the GPU build.",
+                         bg=PANEL, fg=OK if gpu else MUTED, anchor="w").pack(anchor="w", padx=(22, 0), pady=(2, 2))
                 for k, c in p["choice"].items():
-                    t = "%s, %d MB: %s" % (c["label"], c["size"], c["note"]) + ("   (we found your NVIDIA card)" if k == "gpu" and gpu else "")
+                    t = "%s, %d MB: %s" % (c["label"], c["size"], c["note"])
                     ttk.Radiobutton(card, text=t, value=k, variable=self.engine, command=self.refresh).pack(anchor="w", padx=(22, 0))
             bar = ttk.Progressbar(card, length=520, mode="determinate", maximum=100); msg = tk.Label(card, bg=PANEL, fg=MUTED, anchor="w", width=MSG_CHARS)
             self.rows[p["id"]] = dict(var=var, size=size, tag=tagl, bar=bar, msg=msg, card=card)
         bottom = tk.Frame(f, bg=BG); bottom.pack(fill="x", pady=(12, 0))
         self.where = tk.Label(bottom, bg=BG, fg=MUTED, anchor="w", justify="left"); self.where.pack(side="left")
+        self.change = ttk.Button(bottom, text="Change folder...", command=self.pick_folder); self.change.pack(side="left", padx=(14, 0))
         self.go = ttk.Button(bottom, text="Install", style="Go.TButton", command=self.start); self.go.pack(side="right")
         self.cancel = ttk.Button(bottom, text="Cancel", command=self.close); self.cancel.pack(side="right", padx=8)
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -160,9 +187,24 @@ class Setup:
         self.where.config(text="Installs to %s\nDownload %s, about %s on disk. Free: %s" % (self.env, gb(mb), gb(mb * 2.9), gb(free)))
         if not self.busy: self.go.config(text="Install" if todo else "Start PointYoink")
 
+    def pick_folder(self):
+        if self.busy: return
+        base = filedialog.askdirectory(parent=self.root, title="Where should PointYoink keep its parts?", initialdir=os.path.dirname(self.env) or "/", mustexist=True)
+        if not base: return
+        self.env = os.path.join(base, "pointyoink") if os.path.basename(base.rstrip("/")) != "pointyoink" else base
+        self.state = load_state(self.env); have = set(self.state.get("parts", []))
+        for p in PARTS:
+            tag = self.rows[p["id"]]["tag"]; installed = p["id"] in have
+            tag.config(text="installed" if installed else ("required" if p["required"] else "optional"), fg=OK if installed else MUTED)
+        self.refresh()
+
     # ------------------------------------------------------------------ install
     def start(self):
         if self.busy: return
+        try: os.makedirs(self.env, exist_ok=True)
+        except OSError as e: self.where.config(text="Cannot use %s: %s" % (self.env, e)); return
+        remember_env(self.env, self.default_env)
+        self.change.state(["disabled"])
         todo = self.wanted()
         if not todo: self.finish(); return
         self.busy = True; self.go.state(["disabled"])
@@ -231,10 +273,10 @@ class Setup:
                 elif kind == "done":
                     r["bar"].stop(); r["bar"].config(mode="determinate", value=100); r["msg"].config(text="Installed", fg=OK); r["tag"].config(text="installed", fg=OK)
                 elif kind == "fail":
-                    r["bar"].stop(); self.busy = False; self.go.state(["!disabled"]); self.go.config(text="Retry")
+                    r["bar"].stop(); self.busy = False; self.go.state(["!disabled"]); self.change.state(["!disabled"]); self.go.config(text="Retry")
                     r["msg"].config(text="Did not finish: %s. Check the internet connection, then Retry." % val, fg=BAD, wraplength=520, justify="left")
                 elif kind == "all":
-                    self.busy = False; self.go.state(["!disabled"]); self.refresh()
+                    self.busy = False; self.go.state(["!disabled"]); self.change.state(["!disabled"]); self.refresh()
                     if ready(self.env): self.finish(); return
         except queue.Empty: pass
         self.root.after(100, self.pump)

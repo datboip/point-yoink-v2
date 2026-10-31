@@ -123,7 +123,10 @@ def test_finder_returns_the_address_that_really_streams_motion():
         assert scanner_ip.speaks_motion('127.0.0.1',port)
         assert not scanner_ip.speaks_motion('127.0.0.1',1)
         assert scanner_ip.find('127.0.0.1',port=port)=='127.0.0.1'
-        assert scanner_ip.find('',port=port,own='10.9.9.9',arp=['127.0.0.1','10.9.9.7'])=='127.0.0.1'
+        assert scanner_ip.find('',port=port,own='10.9.9.9',arp=['8.8.8.8','10.9.9.7'])==''                 # a public address is never tried
+        real = scanner_ip.is_local; scanner_ip.is_local = lambda ip: True      # the test server is on loopback
+        try: assert scanner_ip.find('',port=port,own='10.9.9.9',arp=['127.0.0.1','10.9.9.7'])=='127.0.0.1'
+        finally: scanner_ip.is_local = real
         assert scanner_ip.find('',port=port,own='10.9.9.9',arp=[])==''
     finally: server.close()
 
@@ -135,6 +138,7 @@ def test_remember_keeps_other_settings_and_rejects_junk(tmp_path,monkeypatch):
     monkeypatch.setenv('POINTYOINK_CONFIG',str(cfg))
     assert not scanner_ip.remember('not an ip')
     assert scanner_ip.remember('192.168.1.50')
+    assert not scanner_ip.remember('8.8.8.8') and not scanner_ip.remember('127.0.0.1')
     data=json.loads(cfg.read_text())
     assert data['scanner_ip']=='192.168.1.50' and data['general']['open_last'] is True
     from app2.scan.telemetry import configured_ip

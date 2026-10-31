@@ -51,7 +51,7 @@ Download the latest `.deb` from [Releases](https://github.com/datboip/point-yoin
 sudo apt install ./point-yoink_*_amd64.deb
 ```
 
-Open **PointYoink** from your application menu, or run `point-yoink`. The first launch opens a setup window that lists each part 2.0 runs on (the Qt window, the Open3D 3D engine, the PyMeshLab mesh tools, OpenCV for the cameras), how big it is and why it is needed. Pick the NVIDIA or the CPU build of the engine, and it downloads them into a private folder (`~/.local/share/pointyoink`). Nothing big is installed system-wide. Run `point-yoink --setup` later to add or change parts.
+Open **PointYoink** from your application menu, or run `point-yoink`. The first launch opens a setup window that lists each part 2.0 runs on (the Qt window, the Open3D 3D engine, the PyMeshLab mesh tools, OpenCV for the cameras), how big it is and why it is needed. Pick the NVIDIA or the CPU build of the engine, and it downloads them into a private folder (`~/.local/share/pointyoink` unless you press Change folder). Nothing big is installed system-wide. Run `point-yoink --setup` later to add or change parts.
 
 ### From source
 
