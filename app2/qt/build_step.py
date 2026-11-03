@@ -534,14 +534,14 @@ class BuildStepPage(QWidget):
         if name in ("h_quality","h_scan_guide","h_fill_preview","h_detect","h_side_detect"):
             purpose={"h_scan_guide":"Finding useful scanner positions and spots still needing frames.","h_quality":"Measuring scan quality. Finding spots that need more frames.","h_fill_preview":"Making the patch preview.","h_detect":"Checking the surface.","h_side_detect":"Checking this side."}[name]
             self._one_shot_jobs[t]=(purpose,time.monotonic())
-            self.job_state.setText(purpose);self.job_state.show();self.job_progress.show();self._refresh_progress()
+            self.job_state.setText(purpose);self._refresh_progress()      # the card in the view shows it: the side panel's own line and bar stay hidden
         return t
 
     def on_result(self, r):
         name,then,fail=self.tickets.pop(r["ticket"],(r["name"],None,None))
         job=getattr(self,"_one_shot_jobs",{}).pop(r["ticket"],None)
         if job:
-            self.job_progress.setVisible(bool(self._one_shot_jobs))
+            self.job_progress.setVisible(False)
             self.job_state.setText((next(iter(self._one_shot_jobs.values()))[0]) if self._one_shot_jobs else
                 ("Done: " if r["ok"] else "Failed: ")+job[0]+" %.1f s" % (time.monotonic()-job[1]))
             self._refresh_progress()
@@ -2371,9 +2371,7 @@ class BuildStepPage(QWidget):
     def _tick(self):
         if self.running() or self.busy_call: self._refresh_progress()
         if self.snap is not None and self.snap.running and not self.running(): self._refresh_tools()      # a build elsewhere: its progress line
-        if getattr(self,"_one_shot_jobs",None):
-            purpose,started=next(iter(self._one_shot_jobs.values()))
-            self.job_state.setText(purpose+" %.0f s elapsed" % (time.monotonic()-started))
+        if getattr(self,"_one_shot_jobs",None): self._refresh_progress()      # the card's clock
         if self.notice_until and time.time() > self.notice_until: self.notice_until = 0; self.vp.notice.show_text(None)
 
     # ---------------- notices
@@ -2581,7 +2579,6 @@ class BuildStepPage(QWidget):
         pending=getattr(self,"_scan_guide_pending",set()); self._scan_guide_pending=pending
         if key in pending:return
         pending.add(key)
-        self.notice("Checking shadows and useful scanner positions...", "info", 40)
         def got(result):
             pending.discard(key); memo[key]=result
             if self.colour_mode.get(self.stage)==mode: self.request_view()

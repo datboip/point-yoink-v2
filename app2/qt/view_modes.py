@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Model display choices over the Build and Edit views, one row along the bottom right of the view (2026-10-24):
 
-  Look  [Shaded ⇄ Scan color]  [Flat facets ⇄ Points]   Overlay: None ▾  [Table turns | Scanner moves]   View ▾
+  Look  [Shaded ⇄ Scan color]  [Flat facets ⇄ Points]   Overlay: None ▾  Next scan [Turntable | Handheld]   View ▾
 
 Two look buttons, each a pair ("shaded and scan color needs to be one button that switches between the two, same with
 flat and points"): the button shows the member in use; clicking it while it is lit flips to the other member, clicking
@@ -17,7 +17,7 @@ from app2.qt.choices import Choices
 LOOKS=('shaded','flat','points','scan_color','sides')
 PAIRS=(('shaded','scan_color'),('flat','points','sides'))   # the two look buttons and the members each flips between
 LEFT=('scan_guide','scan_guide_handheld')                 # the two What is left modes
-LEFT_TEXT={'scan_guide':'Table turns','scan_guide_handheld':'Scanner moves'}
+LEFT_TEXT={'scan_guide':'Turntable','scan_guide_handheld':'Handheld'}
 OVERLAY_ORDER=('what_is_left','quality','capture_distance')
 NONE='__none__'
 
@@ -60,10 +60,11 @@ class ViewModes(QWidget):
         self.overlay_label=self._label('Overlay');self.row.addWidget(self.overlay_label)
         self.overlays=QToolButton();self.overlays.setFocusPolicy(Qt.FocusPolicy.StrongFocus);self.overlays.setToolTip('Color the model by what it needs: more scanning, frame support, or capture distance')
         self.overlay_menu=QMenu(self.overlays);self.overlays.clicked.connect(self._open_overlays);self.row.addWidget(self.overlays)
+        self.left_label=self._label('Next scan');self.row.addWidget(self.left_label);self.left_label.hide()
         self.left_kind=Choices(columns=2);self.row.addWidget(self.left_kind);self.left_kind.hide()
         for key in LEFT:self.left_kind.addItem(LEFT_TEXT[key],key)
         self.left_kind.activated.connect(lambda i:self._pick(self.left_kind.itemData(i)))
-        self.left_kind.setToolTip('What is left for a part on the turntable, or for a scanner moved by hand')
+        self.left_kind.setToolTip('How you will scan what is left. Turntable: the scanner stays put and the part turns. Handheld: you move the scanner around the part.')
         self.more=QToolButton(panel.area);self.more.setText('View ▾');self.more.setToolTip('Projection, marked pieces, and Home view settings');self.more.setFocusPolicy(Qt.FocusPolicy.StrongFocus)   # floats by Home view, bottom left
         self.popup=QFrame(self,Qt.WindowType.Popup);self.popup.setStyleSheet('QFrame {background:#20262e;color:#e7edf5;border:1px solid #46515e;}')
         form=QVBoxLayout(self.popup)
@@ -150,7 +151,7 @@ class ViewModes(QWidget):
         self._set_overlay_text(over_key)
         if current in LEFT:self.left_kind.setCurrentIndex(self.left_kind.findData(current))
         self.left_kind.blockSignals(False)
-        self.left_kind.setVisible(current in LEFT)
+        self.left_kind.setVisible(current in LEFT);self.left_label.setVisible(current in LEFT)
         self.row.invalidate();self.row.activate()
         self.updateGeometry()
 

@@ -47,7 +47,7 @@ def paint(view):
                 for xx,yy,zz in zip(x,y,z):
                     if zz>0 and np.isfinite(xx):p.drawPoint(QPointF(xx,yy))
     p.setPen(QColor('#f0f2f5'))
-    p.drawText(QPointF(15,75),'What is left: '+('Scanner moves' if guide.get('mode')=='handheld' else 'Table turns'))
+    p.drawText(QPointF(15,75),'Suggested scanner spots for: '+('Handheld' if guide.get('mode')=='handheld' else 'Turntable'))
     row_y=95
     for color,text in (('#ff4632','Not scanned yet (holes)'),('#b45ae6','Rough or doubled, scan again'),('#46d778','Done')):
         p.setPen(QColor(color));p.drawText(QPointF(15,row_y),text);row_y+=20

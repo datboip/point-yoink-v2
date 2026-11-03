@@ -63,7 +63,7 @@ def test_color_menu_quality_measures_once_then_asks_for_the_view(tmp_path):
     p = Probe(); p._show_quality()
     assert p.host.calls == [("h_quality", ("/p/mesh.ply",))]
     assert p.views == 0 and p.notes == []
-    assert p.job_state.visible and p.job_progress.visible
+    assert not p.job_state.visible and not p.job_progress.visible      # the card in the view shows the work; the side panel stays quiet
     assert p.job_state.text == "Measuring scan quality. Finding spots that need more frames."
     assert len(p._one_shot_jobs) == 1 and len(p.tickets) == 1
     p.on_result({"ticket": 1, "name": "h_quality", "ok": True,

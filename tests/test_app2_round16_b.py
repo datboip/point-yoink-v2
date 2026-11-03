@@ -117,7 +117,7 @@ def test_quality_job_has_visible_working_and_done_state(app):
     t=B.BuildStepPage.call(p,'h_quality','copy/model.ply')
     assert t in p._one_shot_jobs
     assert 'Measuring scan quality' in p.job_state.text()
-    assert not p.job_progress.isHidden()
+    assert p.job_progress.isHidden()      # the card in the view shows the work; the side panel stays quiet
     B.BuildStepPage.on_result(p,dict(ticket=t,name='h_quality',ok=True,value={}))
     assert p.job_progress.isHidden() and p.job_state.text().startswith('Done:')
     t=B.BuildStepPage.call(p,'h_quality','copy/model.ply')

@@ -2,6 +2,13 @@
 
 All notable changes to PointYoink.
 
+## 2.0.3
+
+- Fixed: `process.py` and `viewer.py` were missing from the repo and from every package so far, so Simplify, Fill holes, Slivers and the Ball pivoting mesh method did not work in 2.0.0 to 2.0.2. They are in now, and tests check that every script the engine runs is present and that Simplify runs end to end. If you use those tools, install this version.
+- While "What is left" or the quality check runs, only the progress card in the view shows it. The second line and bar in the side panel and the top banner are gone.
+- The scan guide's two modes are called Turntable and Handheld, with a "Next scan" label. The ghost scanners button is "Scanner spots", Frame everything is "Frame all", and the orange "can't suggest" messages say what is missing in plain words.
+- README and Getting started corrected: the real ribbon (Projects, Import, Scan, Build, Edit, Export, with Build, Edit and Export off until a project is open), where the resource tiles are, the Export sheet, the Edit tools, where files and settings go, the first-launch download, and the SCANNER window. The internal design notes in docs/ are gone from the repo.
+
 ## 2.0.2
 
 - The 2.0.1 package left out three files, so it would not start. Fixed: the package is rebuilt, and the build now stops when source files are not committed.

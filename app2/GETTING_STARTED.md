@@ -1,6 +1,6 @@
 # Your first model
 
-**Scan → Build → Edit → Export.** You can go back to any step. No scanner yet? **Import** a project scanned on the MIRACO and build it here.
+The ribbon reads **Projects, Import, Scan, Build, Edit, Export**. Build, Edit and Export stay greyed out until a project is open. You can go back to any step. No scanner yet? **Import** a project scanned on the MIRACO and build it here.
 
 ## 1. Set up the camera, once
 
@@ -33,6 +33,8 @@ The MIRACO is calibrated at the factory. The app only needs a copy of its camera
 
 **Fill LED** is the scanner's light. After five minutes the app asks whether you still need it.
 
+The **SCANNER** tile at the top right opens the scanner window. **Use and limits** shows the frame rate and limits. **Motion** shows how the scanner is turned over Wi-Fi: it connects by itself when it can find the scanner and asks for its address when it can't. Calibrate it in two steps (stand the scanner on its base, then lay it on its front face), and **Set heading to here** calls the way it points now 0.
+
 ## 4. Build a solid model
 
 **Build combined model** uses the current settings. **YOLO Yoink** picks a recipe first: **Classic** for everyday, **Sharp** for fine detail from many sides, **Quick Peek** for a fast look, **Detail** or **Deep Clean** for a smooth new surface, **Print** for a small closed model.
@@ -58,7 +60,8 @@ Shape tools pick a spot on the surface, then show red **X, Y, Z arrows** on it, 
 - **Cut shape** removes a cylinder, box or sphere. Click again to move it.
 - **Add fin** needs a closed mesh: two spots set its ends, a third which way it faces.
 - **Cut gap** removes a narrow slot between two spots.
-- **Smooth area** and **Fill gap** work on one spot.
+- **Smooth area** and **Fill gap** work on one spot. **Clone** copies one spot onto another, and **Mirror** fills a symmetric part from a mirrored copy.
+- **Fill holes**, **Slivers** and **Simplify** work on the whole model with no clicking.
 
 Red is always what Apply will change. Inspect it first.
 

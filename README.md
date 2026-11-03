@@ -9,7 +9,7 @@
 
 **A full app for 3D scanners on Linux: scan, build the model on your own PC, clean it up and export it for printing.**
 
-PointYoink takes you from the scanner to a printable file. Scan live with the scanner plugged in, or pull projects you scanned on the scanner over USB or Wi-Fi. Then build, line up sides, cut the base off, edit, and export to STL or 3MF. Your scans stay on your computer. The scanner's files are only copied, never changed. Today it works with the Revopoint MIRACO; more scanners can follow.
+PointYoink takes you from the scanner to a printable file. Scan live with the scanner plugged in, or pull projects you scanned on the scanner over USB or Wi-Fi. Then build, line up sides, cut the base off, edit, and export to STL, OBJ, PLY or 3MF. Your scans stay on your computer. The scanner's files are only copied, never changed. Today it works with the Revopoint MIRACO; more scanners can follow.
 
 > **Work in progress, and it works.** PointYoink is a new app, built from scratch in Qt, that scans, builds, edits and exports end to end. It is tested on one scanner (a MIRACO Pro) and one PC so far, so expect rough edges. Bug reports help a lot: **Help → Report a problem** in the app collects the log for you.
 
@@ -51,6 +51,8 @@ Download the latest `.deb` from [Releases](https://github.com/datboip/point-yoin
 sudo apt install ./point-yoink_*_amd64.deb
 ```
 
+The `.deb` itself is only about 2 MB: the big parts are **downloaded on the first launch**, so that first start needs an internet connection. With the NVIDIA build of the 3D engine it is about 840 MB to download and about 2.4 GB on disk; the CPU build is about 490 MB to download. It happens once, and the setup window shows the sizes before you press Install.
+
 Open **PointYoink** from your application menu, or run `point-yoink`. The first launch opens a setup window that lists each part 2.0 runs on (the Qt window, the Open3D 3D engine, the PyMeshLab mesh tools, OpenCV for the cameras), how big it is and why it is needed. Pick the NVIDIA or the CPU build of the engine, and it downloads them into a private folder (`~/.local/share/pointyoink` unless you press Change folder). Nothing big is installed system-wide. Run `point-yoink --setup` later to add or change parts.
 
 ### From source
@@ -68,17 +70,21 @@ No NVIDIA card: replace `open3d` with `open3d-cpu` in `packaging/requirements.tx
 
 ## What it does
 
-The top ribbon follows the work: **Scan → Build → Edit → Export**. **Help → Getting started** in the app walks through it step by step, and the same guide is in [app2/GETTING_STARTED.md](app2/GETTING_STARTED.md).
+The ribbon across the top reads **Projects, Import, Scan, Build, Edit, Export**. Projects, Import and Scan work with nothing open. **Build, Edit and Export stay greyed out until a project is open**, so start by opening a saved project, importing one from the scanner, or scanning a new one. At the top right, the **SCANNER, CPU, GPU and RAM** tiles show live use, and the **Advanced** button opens the app's settings. **Help → Getting started** in the app walks through it step by step, and the same guide is in [app2/GETTING_STARTED.md](app2/GETTING_STARTED.md).
 
 ### Projects
 
-Open a saved project and continue where you left off.
+Open a saved project and continue where you left off. **Projects** lists them with a picture, the number of sides and the size on disk. Opening one lands on Build when it has sides, or on Scan when it has none.
 
 ![The Projects page with two saved projects](docs/img/v2/projects.png)
 
 ### Scan
 
-Plug the MIRACO in over USB and pick **PC mode** on its screen. The live view shows the part filling in as you turn it. Scan one side, pause, flip the part, press **+ New side**, and keep going. Sides are lined up for you. Optional color capture uses the scanner's fill light.
+Plug the MIRACO in over USB and pick **PC mode** on its screen. The live view shows the part filling in as you turn it. Scan one side, pause, flip the part, press **+ New side**, and keep going. Sides are lined up for you. Optional color capture uses the scanner's fill light, and the **Fill LED** button turns that light on and off.
+
+Once per scanner, the app needs a copy of its camera files: scan anything with Small part and with Large part on the scanner itself, then import both projects (**Settings → Camera setup** on the Scan page shows which cameras are set up). If you scan on a turntable with dots, **Learn bed** teaches the app your bed first.
+
+Click the **SCANNER** tile at the top right for the scanner window. Its **Use and limits** tab shows the scanner's frame rate and limits. Its **Motion** tab shows how the scanner is turned, from its motion stream over Wi-Fi, which connects by itself when it can find the scanner and asks for the address when it can't. The two-step calibration there makes the horizon follow how you hold it.
 
 ![The Scan page: IR, depth and color from the scanner, the model view with the distance bar, and the sides so far](docs/img/v2/scan-page.png)
 
@@ -98,18 +104,18 @@ Already scanned on the scanner? Open **Import** and choose **USB File Transfer**
 
 ![A build running: each step is saved, so a rebuild only redoes what changed](docs/img/v2/build-progress.png)
 
-**YOLO Yoink** picks a recipe for you. The chip under it shows which recipe **Build** uses. Each recipe suits a different kind of part:
+**YOLO Yoink** builds everything start to finish with a recipe. The chip under it shows which recipe **Build** uses. Each recipe suits a different kind of part:
 
 ![The YOLO Yoink dialog: each recipe with an example of its result](docs/img/v2/yolo.png)
 
 | Recipe | Good for |
 |---|---|
-| **Classic** | Keeps fine detail and true depth, like raised text |
-| **Detail** | A very smooth new surface; fine text softens |
+| **Classic Yoink** | Keeps fine detail and true depth, like raised text |
+| **Detail Yoink** | A very smooth new surface; fine text softens |
 | **Deep Clean** | Like Detail with more clean-up; the biggest file |
-| **Sharp** | Closest to the scanner's own model; smooth on many sides |
+| **Sharp Yoink** | Closest to the scanner's own model; smooth on many sides |
 | **Quick Peek** | A fast check, low detail; can leave holes |
-| **Print** | A small closed file ready to slice; fine text softens |
+| **Print Yoink** | A small closed file ready to slice; fine text softens |
 
 The **Advanced** tab sets the recipe's parts yourself: the build method, the detail size, how many loose pieces to remove, how many smoothing passes, and whether to finish for print after building. Name your settings and **Save preset** to reuse them.
 
@@ -117,9 +123,11 @@ The **Advanced** tab sets the recipe's parts yourself: the build method, the det
 
 Not sure? **Ultra Yoink** builds several recipes one after another (it shows the time and disk space first), then lets you flip between the results.
 
+Build's side rail also has **Cut base**, **Smooth**, **Simplify** and **Line-up** as steps of their own. The build is a row of stages (Side, Line-up, Fused, Meshed, Coverage), each with tools that preview their change before you press Apply.
+
 ### Edit
 
-Select with rectangle, lasso, brush or a whole connected piece, and delete. Smooth, simplify, fill holes, cut a gap, cut a shape, or add a reinforcing fin. Every edit has a preview first, shows up in the stage's **Applied** list, and can be undone, turned off later, or compared with the model before it.
+Select faces with rectangle, lasso or brush, grow or shrink the selection, take a whole connected piece or use the Magic tool, then delete. Then click spots on the model for **Cut shape** (a cylinder, box or sphere), **Add fin**, **Cut gap**, **Fill gap**, **Smooth area**, **Clone** or **Mirror**, or run a whole-model tool: **Fill holes**, **Slivers** or **Simplify**. Every edit has a preview first, shows up in the stage's **Applied** list, and can be undone, turned off later, or compared with the model before it.
 
 ![The Edit page: part of the mesh selected in red with the Magic tool](docs/img/v2/edit.png)
 
@@ -135,7 +143,7 @@ Live guidance needs a connected scanner.
 
 ### Export
 
-Set which face sits on the bed and which way is front, then **File → Export STL** or 3MF. **Finish for print** reduces triangles, softens scan noise and closes small holes before you export.
+**File → Export STL** (Ctrl+E) saves the model for your slicer. **Export** in the ribbon, or **File → Export...**, opens a sheet with the format (STL, OBJ, PLY or 3MF), the model's size in millimeters, and an option to include the scan data as a ZIP for a backup. **Finish for print** in Build reduces triangles, softens scan noise and closes small holes before you export, and **View → Set this view as Front** or **Top** saves which way the model faces with the project.
 
 ![The Export dialog: STL, OBJ, PLY or 3MF](docs/img/v2/export.png)
 
@@ -148,14 +156,18 @@ The finished-model orbit is 852 x 480 at 12 fps. These are saved-project example
 <details>
 <summary><b>How it works</b></summary>
 
-A MIRACO scan is thousands of depth frames, each with a pose. Build fuses them per side in a TSDF volume ([Open3D](https://www.open3d.org/), on the GPU when there is one), cuts the turntable off, lines the sides up, joins them and meshes the result. Every step's result is stored under a key made from its inputs, settings and code, so nothing is rebuilt unless something it depends on changed. Heavy steps run as child processes, one at a time, under the RAM, CPU and GPU limits shown on the resource tiles at the bottom of the window (click a tile to see live use or set your own limits).
+A MIRACO scan is thousands of depth frames, each with a pose. Build fuses them per side in a TSDF volume ([Open3D](https://www.open3d.org/), on the GPU when there is one), cuts the turntable off, lines the sides up, joins them and meshes the result. Every step's result is stored under a key made from its inputs, settings and code, so nothing is rebuilt unless something it depends on changed. Heavy steps run as child processes, one at a time, under the RAM, CPU and GPU limits shown on the resource tiles at the top right of the window (click a tile to see live use or set your own limits).
 
 </details>
 
 <details>
 <summary><b>Where files go</b></summary>
 
-Each project is a folder in your project library. `model.ply` is the finished model, `data/` holds the frames, and `stages/` holds the saved results of each build step.
+Everything the app saves goes under one home folder, `~/PointYoink`, unless you moved it in **File → Preferences**: `Scans` is the project library, `Exports` holds exported models, and `Screenshots` and `Recordings` hold files copied off the scanner. Each of those four can be moved on its own. An older install that saved into `~/revopoint-scans-models` keeps using that folder until you pick a new one.
+
+Each project is a folder in the library. `model.ply` is the finished model, `data/` holds the frames, and `stages/` holds the saved results of each build step.
+
+Elsewhere: the app's downloaded parts are in `~/.local/share/pointyoink` (or the folder you chose in setup), and its settings, the bed map and the camera calibrations are in `~/.config/pointyoink`. Deleting a project only removes its folder in the library. The scanner's own files are never changed.
 
 </details>
 
@@ -167,6 +179,8 @@ Each project is a folder in your project library. `model.ply` is the finished mo
 - **Wi-Fi import never starts:** the scanner and the PC must be on the same network.
 - **"Live scanning needs an NVIDIA GPU":** this PC has no CUDA. Import and building still work.
 - **A build stops with an out-of-memory note:** click the RAM tile and lower the limit, or close other heavy apps.
+- **The app does not open:** run `point-yoink` in a terminal and read what it prints. If it stops at a missing part, run `point-yoink --setup` to repair or add parts. Then report it with the last lines.
+- **The Motion tab says it could not find the scanner:** the scanner and the PC must be on the same Wi-Fi. Type the address shown in the scanner's Wi-Fi settings into the Motion tab and press Connect. The app remembers it.
 - **Anything else:** **Help → Report a problem**, then open an issue with it.
 
 </details>
@@ -178,6 +192,10 @@ Everything happens on your machine, over USB or your local network. Nothing is u
 ## Contributing
 
 Bug reports, test results and ideas are welcome, especially from MIRACO and MIRACO Plus owners and from PCs other than mine. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Like it?
+
+If PointYoink helped you and you have a second, a star on the [GitHub page](https://github.com/datboip/point-yoink-v2) would be really appreciated. It helps the app get found by more people. Thank you.
 
 ## License
 

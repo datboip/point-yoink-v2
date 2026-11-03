@@ -80,7 +80,7 @@ def guide(project, src, mode='turntable', distance=None, lineup_file=None, frame
         out.parent.mkdir(parents=True,exist_ok=True); np.save(rgb,colors); out.write_text(json.dumps(result,indent=2))
         return dict(result,rgb=str(rgb))
     if not params:
-        result['reason']='Saved scanner calibration is needed to suggest positions';return finish()
+        result['reason']="Can't suggest scanner spots yet: this project has no saved camera calibration.";return finish()
     saved={s.get('id'):s for s in lineup}; first=next(iter(saved.values()),{})
     param=params[0].parent
     if first.get('calib'):param=(root/first['calib']).parent
@@ -91,9 +91,9 @@ def guide(project, src, mode='turntable', distance=None, lineup_file=None, frame
         except (OSError,ValueError,KeyError): pass
     try:lens=Lens.from_param(param,size=size,distance=distance)
     except (OSError,ValueError) as e:
-        result['reason']='Saved stereo calibration is needed to suggest positions: '+str(e);return finish()
+        result['reason']="Can't suggest scanner spots yet: the camera calibration could not be read ("+str(e)+").";return finish()
     if not lineup:
-        result['reason']='Saved model placement is needed to suggest positions';return finish()
+        result['reason']="Can't suggest scanner spots yet: the model has not been placed. Build it first.";return finish()
     bed=None;poses=[]
     for side in sorted(root.glob('data/*')):
         ss=saved.get(side.name,{}); M=np.asarray(ss.get('T',np.eye(4)),float)
@@ -112,7 +112,7 @@ def guide(project, src, mode='turntable', distance=None, lineup_file=None, frame
             except (OSError,ValueError):pass
         if bed is not None:break
     if bed is None:
-        result['reason']='Saved bed plane and placement are needed to suggest positions';return finish()
+        result['reason']="Can't suggest scanner spots yet: the table was not found in this project's scan.";return finish()
     axis,circle_center=axis_from_poses(poses,bed[0]);center=V.mean(0)
     if circle_center is not None:center=circle_center+axis*((center-circle_center)@axis)
     bad=np.flatnonzero(q['kind']>0)
