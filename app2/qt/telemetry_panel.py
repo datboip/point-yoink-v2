@@ -221,6 +221,7 @@ class TelemetryPanel(QWidget):
     def refresh(self):
         state, sample, count, age = self.client.snapshot()
         active = state in ACTIVE
+        from app2.scan import usb_mode; usb_mode.wifi_alive = state == 'Receiving'
         self.connect_button.setText('Disconnect' if active else 'Connect')
         self.address.setEnabled(not active)
         self.status.setText('Looking for the scanner on Wi-Fi...' if self.searching and not active else state)

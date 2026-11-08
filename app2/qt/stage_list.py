@@ -14,7 +14,7 @@ class InfoBlock(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         v = QVBoxLayout(self); v.setContentsMargins(4, 0, 0, 0); v.setSpacing(1); self.lines = []
-        for i in range(4):                      # sides/frames, camera + size, counts, sizes on disk (2026-10-24: one line each, no eliding)
+        for i in range(5):                      # sides/frames, camera + size, counts, sizes on disk, STL estimate (2026-10-24: one line each, no eliding)
             l = ElidedLabel(); l.setFont(ui_font(13, QFont.Weight.DemiBold if i == 0 else QFont.Weight.Normal))
             l.setStyleSheet("color: %s;" % (T["ink"] if i == 0 else T["ink2"])); v.addWidget(l); self.lines.append(l)
         self.narrow = False

@@ -328,8 +328,10 @@ class StageHost:
                 per += sum(os.path.getsize(os.path.join(r, f)) for r, _x, fs in os.walk(newest) for f in fs)
         if per == 0: per = 25 * 2**20 * max(1, len(self.e.p.sides()))
         out = []
-        for name in presets:
-            o = self.h_onetap(name); o["est_bytes"] = per if o["to_run"] else 0; out.append(o)
+        from app2.builder.preset_store import validate_fragment
+        for item in presets:                                   # a name, or {preset, fragment} for a saved recipe
+            o = self.h_onetap(item["preset"], validate_fragment(item["fragment"])) if isinstance(item, dict) else self.h_onetap(item)
+            o["est_bytes"] = per if o["to_run"] else 0; out.append(o)
         return out
 
     def h_onetap(self, preset, fragment=None):
@@ -598,7 +600,7 @@ def tool_words(name, params, kind):
     if name == "smooth":
         s = PR.fmt(float(p.get("strength", 0)))
         return ("Smooth %s%% x%d" if kind == "mesh" else "Smooth %s x%d") % (s, int(p.get("times", 1)))
-    if name == "simplify": return "Simplify %s%%" % PR.fmt(float(p.get("keep_pct", 0)))
+    if name == "simplify": return "Simplify %s%%" % PR.fmt(float(p.get("keep_pct", 0))) + (", within %s mm" % PR.fmt(float(p["tol_mm"])) if float(p.get("tol_mm") or 0) > 0 else "")
     if name == "mirror": return "Mirror (gap %g mm)" % float(p.get("gap_mm", 1.5))
     if name == "clone": return "Clone (%s %g mm)" % (p.get("shape", "cylinder"), float(p.get("width" if p.get("shape") == "box" else "diameter", 0)))
     if name == "local_fix": return "Smooth area (%s %g mm)" % (p.get("shape", "cylinder"), float(p.get("width" if p.get("shape") == "box" else "diameter", 0)))

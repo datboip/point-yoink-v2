@@ -10,7 +10,7 @@ import sys, os, argparse, resource, json
 MEM_CAP_GB = float(os.environ.get("POINTYOINK_MEM_CAP_GB", "10"))
 try:
     cap = int(MEM_CAP_GB * 1024**3)
-    resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
+    resource.setrlimit(resource.RLIMIT_AS, (cap, resource.getrlimit(resource.RLIMIT_AS)[1]))   # soft cap only: the distance check may lift it for itself, briefly
 except Exception as e:
     print("MEMCAP_WARN %s" % e, flush=True)
 
@@ -64,6 +64,24 @@ def _smooth_fill_faces(m, old_fcount, iters=120):
         acc = np.zeros_like(V); np.add.at(acc, e[:, 0], V[e[:, 1]]); V[free] = (acc / deg[:, None])[free]
     return trimesh.Trimesh(V, np.vstack([orig, fillf]), process=False)
 
+
+def _simplify_check(v0, f0, v1, f1, tol_mm, samples=200000):
+    """How far the simplified surface strayed from the original, measured both ways (original -> simplified catches dents and
+    shrinkage, simplified -> original catches bumps): exact point-to-triangle distances (Open3D) from the vertices and from
+    random points on the faces of each. Returns {within_pct: share of those within tol_mm, max_mm}."""
+    import numpy as np, open3d as o3d, trimesh
+    def scene(v, f):
+        sc = o3d.t.geometry.RaycastingScene()
+        sc.add_triangles(o3d.core.Tensor(np.asarray(v, np.float32)), o3d.core.Tensor(np.asarray(f, np.uint32))); return sc
+    def pts(v, f):
+        rng = np.random.default_rng(1); m = trimesh.Trimesh(v, f, process=False)
+        n = min(samples, max(1000, len(f)))
+        return np.vstack([np.asarray(v, np.float32), np.asarray(trimesh.sample.sample_surface(m, n, seed=1)[0], np.float32)])
+    def dist(sc, q): return sc.compute_distance(o3d.core.Tensor(np.ascontiguousarray(q, np.float32))).numpy()
+    d = np.concatenate([dist(scene(v1, f1), pts(v0, f0)), dist(scene(v0, f0), pts(v1, f1))])
+    return dict(within_pct=round(float((d <= tol_mm).mean() * 100.0), 2), max_mm=round(float(d.max()), 3), tol_mm=float(tol_mm))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("infile"); ap.add_argument("outfile", nargs="?")
@@ -84,6 +102,7 @@ def main():
     ap.add_argument("--rebuild-surface", type=int, default=0, help="rebuild the surface from the points with Poisson reconstruction at this octree depth (0 = off; 9 = normal, 10 = more detail). Turns torn edges and streaks into one continuous skin; the low-density skin Poisson grows over real openings is trimmed off. Needs Open3D")
     ap.add_argument("--slivers", type=float, default=0, help="remove stretched triangles: any face whose longest edge is more than this many times the mesh's median edge (0 = off; 4 is a good default). The small holes this opens are closed by the hole fill when it is on")
     ap.add_argument("--simplify-pct", type=float, default=0, help="keep this %% of faces after cleaning (0 = keep all; the scanner's Simplify uses 40)")
+    ap.add_argument("--simplify-tol", type=float, default=0, help="with --simplify-pct: the most the surface may move, in mm. The result is measured against the original both ways and, when under 99.9%% of it is within this, more faces are kept and it is redone (up to 6 passes). 0 = no check")
     ap.add_argument("--rebuild-points", action="store_true", help="reconstruct a mesh from a point cloud with ball-pivoting (keeps openings); runs under this process's memory cap")
     a = ap.parse_args()
 
@@ -391,7 +410,25 @@ def main():
                 emit("warn", step="desliver", err=str(e)[:200])
         if 0 < a.simplify_pct < 100:
             import fast_simplification
-            v, f = fast_simplification.simplify(np.asarray(m.vertices, np.float32), np.asarray(m.faces, np.int32), target_reduction=1.0 - a.simplify_pct / 100.0)
+            keep = float(a.simplify_pct); v0 = np.asarray(m.vertices, np.float32); f0 = np.asarray(m.faces, np.int32)
+            for npass in range(1, 7 if a.simplify_tol > 0 else 2):
+                v, f = fast_simplification.simplify(v0, f0, target_reduction=1.0 - keep / 100.0)
+                if a.simplify_tol <= 0: break
+                soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+                try:                                                    # Embree reserves address space the cap counts: lift it for the check only
+                    try: resource.setrlimit(resource.RLIMIT_AS, (hard if hard != resource.RLIM_INFINITY and hard < soft + 12 * 1024**3 else soft + 12 * 1024**3, hard))
+                    except Exception: pass
+                    chk = _simplify_check(v0, f0, v, f, a.simplify_tol)
+                except Exception as e:
+                    emit("warn", step="simplify-check", err=str(e)[:200]); break
+                finally:
+                    try: resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
+                    except Exception: pass
+                chk.update(keep_pct=round(keep, 1), passes=npass, faces=int(len(f)))
+                chk["ok"] = chk["within_pct"] >= 99.9
+                if chk["ok"] or npass == 6 or keep >= 99: break
+                keep = min(99.0, keep + (100.0 - keep) * 0.5)            # too far off: keep more faces and redo
+            if a.simplify_tol > 0 and "within_pct" in locals().get("chk", {}): emit("simplify_check", **chk)
             m = trimesh.Trimesh(v, f, process=False)
         emit("cleaned", faces=len(m.faces))
 

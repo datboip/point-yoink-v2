@@ -60,7 +60,7 @@ def test_delete_in_edit_hides_now_and_rebuilds_once_later():
               call=lambda name, *a, then=None, **k: calls.append(name) or then({'got': 2}), start_run=lambda run: calls.append('run') or True,
               _edit_run=lambda: 'edit', set_tool=lambda t: calls.append('tool:' + t), pending_changed=lambda: BuildStepPage.pending_changed(page))
     BuildStepPage.delete_selection(page)
-    assert calls == ['h_mask_delete', 'hide'] and page.pending_edits == 1 and 'wait for one rebuild' in notices[-1]
+    assert calls == ['h_mask_delete', 'hide'] and page.pending_edits == 1 and 'rebuilds in a few seconds' in notices[-1]
     BuildStepPage.delete_selection(page); assert page.pending_edits == 2
     assert BuildStepPage.flush_pending_edits(page) and calls[-1] == 'run' and page.pending_edits == 0
     assert not BuildStepPage.flush_pending_edits(page)                      # nothing waiting: no run

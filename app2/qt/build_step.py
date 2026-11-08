@@ -16,6 +16,8 @@ The view's label (top left) says exactly what it shows: "Raw frames · side 3 of
 "Line-up · 6 sides, a color per side", "Fused · 6 sides", "Built model · 6 sides", "Finished for print · 250k
 triangles", "Scan here · 3 places to scan"."""
 import math, os, time
+
+AUTO_REBUILD_MS = 4000          # quiet time after the last delete before its rebuild starts by itself
 TRACE = bool(os.environ.get("POINTYOINK_TRACE"))       # developer: print how long host calls, status and view loads take
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, QEvent, QFileSystemWatcher, Signal
@@ -145,6 +147,7 @@ class BuildStepPage(QWidget):
         self.vb = StageBridge(self)                                     # the view loader's bridge (lives with the page)
         self._shut = False; self._applied_ids = []
         self._run_watchdog=QTimer(self);self._run_watchdog.setSingleShot(True)
+        self._auto_rebuild=QTimer(self);self._auto_rebuild.setSingleShot(True);self._auto_rebuild.setInterval(AUTO_REBUILD_MS);self._auto_rebuild.timeout.connect(self._auto_rebuild_now)
         self._run_watchdog.timeout.connect(self._run_check_timeout);self._run_watchdog_backend=None
         self.stage = "fused"; self.side_k = 1; self.tickets = {}; self.run_mine = None; self._was_building = False
         self.detected = None; self.editing = None; self.comparing = False; self.peek = False; self._b_down = False
@@ -186,15 +189,6 @@ class BuildStepPage(QWidget):
         self.onetap.setIcon(QIcon(str(Path(__file__).with_name("assets") / "yoink-arrow.svg")))
         self.onetap.setIconSize(QSize(30, 24)); self.onetap.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         rv.addWidget(self.onetap)
-        from PySide6.QtWidgets import QMenu
-        self.recipe_b = button("", "quiet", W.RECIPE["tip"]); self.recipe_b.setObjectName("RecipeChip")   # what Build uses, always in sight
-        self.recipe_menu = QMenu(self.recipe_b); self.recipe_b.setMenu(self.recipe_menu); self.recipe_menu.aboutToShow.connect(self._fill_recipe_menu)
-        # 2026-10-25: a real button, outlined in the YOLO green, not a dim line of text ("this recipe is actually very hidden")
-        self.recipe_b.setStyleSheet("QPushButton#RecipeChip {background:#1d2b22;color:#cfeeda;border:1px solid #5fbf7a;border-radius:6px;padding:4px 12px;text-align:center;}"
-                                    " QPushButton#RecipeChip:hover {background:#24382c;} QPushButton#RecipeChip::menu-indicator {image:none;width:0;}"
-                                    " QPushButton#RecipeChip:disabled {color:#77818f;border-color:#3a4a40;}")
-        self.recipe_b.setFixedHeight(32)
-        rv.addWidget(self.recipe_b)
         self.off_note = QLabel(""); self.off_note.setWordWrap(True); self.off_note.setProperty("role", "hint"); self.off_note.hide()
         self.off_note.setObjectName("ToolsOffNote"); rv.addWidget(self.off_note)
         self.scroll = QScrollArea(); self.scroll.setWidgetResizable(True); self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -254,6 +248,7 @@ class BuildStepPage(QWidget):
         self.stages.picked.connect(self._pick_stage); self.pager.step.connect(self.step_side)
         self.onetap.clicked.connect(self.open_onetap)
         self.onetap_dlg.preset_changed.connect(self._ask_onetap); self.onetap_dlg.cancel.connect(self.close_onetap)
+        self.onetap_dlg.ultra.connect(lambda: (self.close_onetap(), self.open_ultra()))
         self.onetap_dlg.size_changed.connect(self._center_onetap)
         self.onetap_dlg.custom_changed.connect(self._ask_custom_onetap)
         self.onetap_dlg.custom_ok.connect(self.do_custom_onetap)
@@ -289,7 +284,7 @@ class BuildStepPage(QWidget):
         if gl:
             vp.pa.view.surface_picked.connect(lambda w: self._points_pick_pane(0, w)); vp.pb.view.surface_picked.connect(lambda w: self._points_pick_pane(1, w))
             vp.main.view.surface_picked.connect(self._surface_pick); vp.main.view.pick_missed.connect(self._pick_missed)
-            vp.main.view.selected_nothing.connect(lambda tool: self.notice(W.NOTICE["nothing_click" if tool == "piece" else "nothing_box"], level="info"))
+            vp.main.view.selected_nothing.connect(lambda tool: self.notice(W.NOTICE["nothing_remove" if tool == "subtract" else "nothing_click" if tool == "piece" else "nothing_box"], level="info"))
             vp.main.view.marker_clicked.connect(self._goto_side)
             vp.main.view.ring_turn.connect(lambda k, deg, done: self._nudge_on() and self.panel["lineup"].ring_turn(k, deg, done))
             vp.main.view.arrow_move.connect(lambda k, mm, done: self._nudge_on() and self.panel["lineup"].arrow_move(k, mm, done))
@@ -637,6 +632,7 @@ class BuildStepPage(QWidget):
             self._drop_host(); self._ensure_host(force=True)
         elif self.host is not None: self.host.status()
         self._refresh_all()
+        if prog is not None and prog.done and getattr(mine, "what", None) == "onetap" and not getattr(self, "_ultra", None): self._keep_recipe_picture()
         if getattr(self, "_ultra", None) and getattr(mine, "what", None) == "onetap": self._ultra_done(bool(prog is not None and prog.done and not was_stopped))
         if getattr(mine, "onetap_phase", 0) == 1 and prog is not None and prog.done and not was_stopped: self._onetap_check()
         elif (getattr(mine, "what", None) == "onetap" or getattr(mine, "land", False)) and prog is not None and prog.done and not was_stopped: self.show_built()   # YOLO / Build it done: the model, not side 1's raw frames
@@ -723,7 +719,7 @@ class BuildStepPage(QWidget):
     # ================================================================ refresh
     def _refresh_all(self):
         self._refresh_rows(); self._refresh_info(); self._refresh_panel(); self._refresh_applied(); self._refresh_footer()
-        self._refresh_rebuild(); self._refresh_tools(); self._refresh_progress(); self._refresh_chips(); self._refresh_recipe()
+        self._refresh_rebuild(); self._refresh_tools(); self._refresh_progress(); self._refresh_chips()
 
     def _nodes(self, group):
         g = self.snap.group(group) if self.snap else None
@@ -1850,8 +1846,8 @@ class BuildStepPage(QWidget):
         mod = self._camera_module(); l2 = W.INFO["line2"].format(module=mod) if mod else ""
         dims = self._model_dims(self._export_src()) if self.stage == "meshed" and self.isVisible() else None
         if dims: l2 = (l2 + "    " if l2 else "") + W.INFO["size"].format(dims=dims)
-        gb = self._project_size(); sizes = ([W.INFO["project"].format(size=gb)] if gb else []) + self._file_line()
-        self.info.set_lines([l1, l2, self._count_line(), "    ".join(sizes)])
+        gb = self._project_size(); fl = self._file_line(); sizes = ([W.INFO["project"].format(size=gb)] if gb else []) + fl[:1]
+        self.info.set_lines([l1, l2, self._count_line(), "    ".join(sizes), "    ".join(fl[1:])])      # the STL estimate has its own line: it did not fit beside the sizes ("STL ab...")
 
     def _project_size(self):
         """The project's size on disk, measured once off the thread and
@@ -2244,6 +2240,16 @@ class BuildStepPage(QWidget):
         else: text = W.REBUILD_BAR["plain_text"].format(rest=join_words(LABEL[x] for x in stale), eta=eta)
         self.vp.rebuild.show_text(text)
 
+    def stale_stage_count(self):
+        """How many stages need a rebuild (Edit's Rebuild button shows when this is more than 0)."""
+        if self.snap is None or self.running() or not self._nodes("raw"): return 0
+        return sum(1 for sid in STAGE_IDS[1:] if self._row_state(sid)[0] in (W.ROW_STATE["stale"]["text"], W.ROW_STATE["waiting"]["text"]))
+
+    def rebuild_stale(self):
+        """Edit's Rebuild button: the waiting deletes' rebuild, else a plain rebuild of what is out of date."""
+        if self.flush_pending_edits(): return True
+        return bool(self.start_run(self._edit_run()))
+
     # ---------------- tools on / off
     def running(self): return bool(self.state is not None and self.state.building)
 
@@ -2329,7 +2335,8 @@ class BuildStepPage(QWidget):
             vp.card.show_state(title, what, params, frac, prog.elapsed() if prog else 0, cached, self.stopping, percent_label=percent_label,
                                overall=overall, doing=doing, nodes=getattr(prog, "nodes", None))
         elif self.busy_call and self.busy_call.get("name") in ("h_detect", "h_side_detect", "h_mask_delete", "delete", "h_onetap_", "preview",
-                                                               "h_export_stl", "h_export"):
+                                                               "h_export_stl", "h_export") and not (
+                self.busy_call.get("name") == "h_mask_delete" and time.time() - self.busy_call["since"] < 6):      # the delete is only recorded; the rebuild after it has the card, so one card, not two
             vp.card.show_state(W.PROGRESS["processing"], {"h_detect": "Detect", "h_side_detect": "Detect", "h_mask_delete": "Delete",
                                                           "delete": "Delete", "preview": "Preview",
                                                           "h_export_stl": W.EXPORT["title"], "h_export": W.EXPORT_SHEET["title"]}.get(self.busy_call["name"], ""), "", None,
@@ -2457,7 +2464,8 @@ class BuildStepPage(QWidget):
         for step in reversed(list((s.lists or {}).get(token) or [])):
             path = s.out(step)
             if path: return path
-        return None
+        shown = (getattr(self, "shown", None) or {}).get("path")
+        return shown if shown and os.path.exists(shown) else None       # nothing built before the delete: keep the picture that was on screen (its faces are hidden)
 
     def _platter_pending(self):
         """Is a base cut waiting to be applied? Then the view shows the side before the cut with the violet (what would go); otherwise
@@ -2845,7 +2853,7 @@ class BuildStepPage(QWidget):
         from app2.qt.scan_guide import show as show_guide
         self._ghost_legend(); self._orient_view(); self._spots_view()     # ghosts' dots first (cleared off other stages), then the picked tool's marks
         show_guide(v,guide,frame=self._should_frame(req) or bool(guide and previous_guide is not guide))
-        self.vp.guide_controls.setVisible(bool(guide)); self.vp._place()
+        self.vp.set_guide_state(guide); self.vp.guide_controls.setVisible(bool(guide)); self.vp._place()
         if self.stage == "report": self.panel["report"].set_guide(guide)
         self._maybe_prompt_orientation()
         it0 = out["items"][0] if out["items"] else {}
@@ -2872,6 +2880,8 @@ class BuildStepPage(QWidget):
             return
         if self.state is None or self.state.project != project or self.detected is not None:
             return
+        from app2.qt.view_modes import LOOKS
+        if self.colour_mode.get("meshed") not in (None, *LOOKS): return      # a What is left / quality / distance overlay is not the model: its green and red are not a project picture
         from app2.qt.project_picker import save_scene_preview
         save_scene_preview(project, self.vp.view)
 
@@ -3372,8 +3382,15 @@ class BuildStepPage(QWidget):
             v.hide_selected(); self.pending_edits = getattr(self, "pending_edits", 0) + 1
             if int(r.get("got") or 0) != want: self.notice(W.NOTICE["took_other"].format(got=r.get("got"), want=want))
             else: self.notice(W.NOTICE["delete_pending"].format(n=self.pending_edits, s="" if self.pending_edits == 1 else "s"), level="info")
-            self.pending_changed()
+            self.pending_changed(); getattr(self, "_auto_rebuild", None) and self._auto_rebuild.start()      # a few quiet seconds after the last delete, the one rebuild runs by itself
         self.call("h_mask_delete", node, pos, want, then=done)
+
+    def _auto_rebuild_now(self):
+        """The waiting deletes' rebuild, once the user has paused: not while a run or another call is busy, and not while red faces are selected (they are about to delete more)."""
+        if self._shut or not getattr(self, "pending_edits", 0): return
+        sel = self.vp.view.selection if self.gl else None
+        if self.running() or self.busy_call or (sel is not None and sel.any()): self._auto_rebuild.start(); return
+        self.flush_pending_edits()
 
     def pending_changed(self):
         cb = getattr(self, "on_pending_edits", None)
@@ -3763,6 +3780,8 @@ class BuildStepPage(QWidget):
         if self._shut or self.session is None or s is None or s.recording or s.building or self.run_mine is not None:return False
         self._cancel_measurements()
         self.run_mine = backend; self.prog = None; self.undo_text = None; self.stopping = False
+        if getattr(self, "pending_edits", 0) and getattr(backend, "to", 1) is None and not getattr(backend, "from_", None):
+            self.pending_edits = 0; self.pending_changed()      # a full build replays the waiting deletes itself: nothing is left to wait
         self.session.build(backend)
         self._run_watchdog_backend=backend;self._run_watchdog.start(4000)
         self._refresh_all(); return True
@@ -4223,26 +4242,16 @@ class BuildStepPage(QWidget):
         key, name, edited = self._recipe_info()
         return W.RECIPE["edited"].format(name=name) if edited else name
 
-    def _refresh_recipe(self):
-        if not hasattr(self, "recipe_b"): return
-        self.recipe_b.setText(W.RECIPE["chip"].format(name=self._recipe_text()) + "  \u25be")
-        self.recipe_b.setEnabled(self.snap is not None and not self.running() and self.busy_call is None)
-
-    def _fill_recipe_menu(self):
-        m = self.recipe_menu; m.clear(); key, _n, _e = self._recipe_info()
-        for k, label, _h in W.ONETAP["presets"]:
-            a = m.addAction("%s   \u00b7  %s" % (label, W.RECIPE["menu_hint"].get(k, ""))); a.setCheckable(True); a.setChecked(k == key)
-            a.triggered.connect(lambda _c=False, kk=k: self.pick_recipe(kk))
-        m.addSeparator()
-        m.addAction(W.RECIPE["ultra"]).triggered.connect(self.open_ultra)
-        m.addAction(W.RECIPE["all_options"]).triggered.connect(self.open_onetap)
-
-    def pick_recipe(self, key):
-        """Switch the recipe Build uses; nothing builds until Build (the bar then says what will rebuild)."""
-        if self.running() or self.busy_call is not None or self.snap is None: return
-        names = {k: label for k, label, _h in W.ONETAP["presets"]}
-        self.call("preset", key, then=lambda _r: (self.notice(W.RECIPE["picked"].format(name=names.get(key, key)), level="info", secs=4),
-                                                   self.host.status() if self.host is not None else None))
+    def _apply_recipe(self, key, then=None, fail=None):
+        """Make a named recipe the project's: a built-in one by name, a saved one (saved:<name>) from its stored settings."""
+        if str(key).startswith("saved:"):
+            from app2.builder import preset_store as store
+            try: fragment = store.recipe_fragment(store.load_presets()[key[6:]])
+            except (KeyError, ValueError, OSError):
+                if fail: fail("That saved recipe is gone.")
+                return
+            self.call("h_apply_custom", fragment, key, then=then, fail=fail); return
+        self.call("preset", key, then=then, fail=fail)
 
     def ultra_running(self): return bool(getattr(self, "_ultra", None))
 
@@ -4259,9 +4268,20 @@ class BuildStepPage(QWidget):
         if not u["queue"]:
             self._ultra = None; u["sheet"].show_results(u["results"]); return
         k = u["queue"].pop(0); u["cur"] = (k, time.time())
-        u["sheet"].show_running(len(u["results"]), len(u["all"]), names.get(k, k))
-        self.call("preset", k, then=lambda _r: self.start_run(StagesRun(what="onetap")),
-                  fail=lambda e: self._ultra_done(False))
+        u["sheet"].show_running(len(u["results"]), len(u["all"]), names.get(k, k[6:] if k.startswith("saved:") else k))
+        self._apply_recipe(k, then=lambda _r: self.start_run(StagesRun(what="onetap")), fail=lambda e: self._ultra_done(False))
+
+    def _keep_recipe_picture(self, key=None, wait=False):
+        """Draw the model this build made and keep it as the recipe's picture (a worker thread, so the window does not stall)."""
+        import threading
+        from app2 import recipe_pictures
+        project = getattr(self.state, "project", None) or self.host_root
+        model = os.path.join(self.host_root or "", "model.ply")
+        if not project or not os.path.isfile(model): return
+        if key is None:
+            k, _n, edited = self._recipe_info(); key = "custom" if edited else k
+        job = threading.Thread(target=recipe_pictures.save, args=(project, key, model), daemon=True, name="recipe-picture"); job.start()
+        if wait: job.join(20)
 
     def _ultra_done(self, ok):
         """A recipe's run ended: note what it made, then the next one (a stop or failure ends Ultra Yoink)."""
@@ -4275,6 +4295,7 @@ class BuildStepPage(QWidget):
                 with open(m, "rb") as f: head = f.read(4096).decode("latin-1")
                 faces = next((int(l.split()[2]) for l in head.splitlines() if l.startswith("element face")), None)
             except (OSError, ValueError, IndexError): pass
+        if ok: self._keep_recipe_picture(k, wait=True)           # before the next recipe replaces model.ply
         u["results"].append(dict(preset=k, ok=ok, secs=time.time() - t0, faces=faces, bytes=size))
         if ok: QTimer.singleShot(0, self._ultra_next)
         else: self._ultra = None; u["sheet"].show_results(u["results"], stopped=True)
@@ -4282,7 +4303,7 @@ class BuildStepPage(QWidget):
     def show_recipe(self, key):
         """Ultra Yoink's Show: make it the recipe and run (its results are stored, so this only re-shows them)."""
         if self.running() or self.busy_call is not None: return
-        self.call("preset", key, then=lambda _r: self.start_run(StagesRun(what="onetap")))
+        self._apply_recipe(key, then=lambda _r: self.start_run(StagesRun(what="onetap")))
 
     def open_ultra(self):
         from app2.qt.ultra import UltraSheet
@@ -4291,7 +4312,7 @@ class BuildStepPage(QWidget):
     def open_onetap(self):
         if not self.onetap.isEnabled() or not self.isVisible(): return
         self.scrim.setGeometry(self.rect()); self.scrim.show(); self.scrim.raise_()
-        d = self.onetap_dlg; d.fix_size(); d.move((self.width() - d.width()) // 2, max(10, (self.height() - d.height()) // 2))
+        d = self.onetap_dlg; d.show_pictures(self.host_root); d.fix_size(); d.move((self.width() - d.width()) // 2, max(10, (self.height() - d.height()) // 2))
         d.show(); d.raise_()
         preset = ((self.snap.recipe or {}).get("preset") if self.snap else None) or "auto"
         if preset == "today": preset = "auto"            # the same settings: Auto "Let the app choose" is the one a first-timer should see picked

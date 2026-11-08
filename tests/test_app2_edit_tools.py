@@ -156,3 +156,32 @@ def test_selection_view_includes_the_items_orientation():
     view.set_item_model('model',M)
     assert np.allclose(view._edit_view(), np.asarray(view.cam.view,float)@M)
     view.close()
+
+
+def test_grow_and_shrink_by_distance_take_several_rings():
+    app=QApplication.instance() or QApplication([])
+    n=24; v=np.array([[x,y,0] for y in range(n+1) for x in range(n+1)],float); f=[]
+    for y in range(n):
+        for x in range(n):
+            a=y*(n+1)+x; b=a+1; c=a+n+1; d=c+1; f+=[[a,b,c],[b,d,c]]
+    f=np.array(f); mid=(n//2*n+n//2)*2
+    view=EditView(); view.show_items([dict(key='model',kind='mesh',V=v,F=f,N=None)],edit='model')
+    view.selection[mid]=True
+    assert view.topology_selection('grow',mm=0); one=int(view.selection.sum())
+    view.selection[:]=False; view.selection[mid]=True
+    assert view.topology_selection('grow',mm=4); four=int(view.selection.sum())
+    assert four > one + 10                                    # about 4 mm of rings, not one ring
+    assert view.topology_selection('shrink',mm=4) and int(view.selection.sum()) < four
+
+
+def test_find_loose_selects_floaters_but_not_the_main_piece():
+    app=QApplication.instance() or QApplication([])
+    n=12; v=[[x,y,0] for y in range(n+1) for x in range(n+1)]; f=[]
+    for y in range(n):
+        for x in range(n):
+            a=y*(n+1)+x; f+=[[a,a+1,a+n+1],[a+1,a+n+2,a+n+1]]
+    base=len(v); v+=[[50,50,5],[51,50,5],[50,51,5],[60,60,5],[61,60,5],[60,61,5]]; f+=[[base,base+1,base+2],[base+3,base+4,base+5]]
+    v=np.array(v,float); f=np.array(f)
+    view=EditView(); view.show_items([dict(key='model',kind='mesh',V=v,F=f,N=None)],edit='model')
+    assert view.select_loose(5) == (2, 2)
+    assert view.selection[-2:].all() and not view.selection[:-2].any()

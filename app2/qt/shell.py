@@ -40,7 +40,7 @@ SCAN_KEYS = (("Space", "key_space"), ("N", "key_new"), ("Up", lambda p: p.key_st
 
 
 SEP = (None, None)                                              # a separator in the menu tables
-ALWAYS_ON = ("close", "prefs", "guide", "keys", "report", "about", "fullscreen")   # work on every page, the Import page too
+ALWAYS_ON = ("close", "prefs", "guide", "keys", "report", "update", "about", "fullscreen")   # work on every page, the Import page too
 
 class MainWindow(QMainWindow):
     _prepare_done = Signal(object)
@@ -247,8 +247,8 @@ class MainWindow(QMainWindow):
                      ("export","Export STL"),("export_as","Export..."),("timelapse","Export scan timelapse..."),SEP,
                      ("prefs","Preferences..."),("cleanup","Clean up temporary files"),SEP,("close","Quit")),
             "Edit": (("undo","Undo"),("redo","Redo"),SEP,("edit","Edit model"),("delete_selection","Delete selected")),
-            "View": (("compare","Compare"),("home","Home view"),SEP,("perspective","Perspective"),("orthographic","Orthographic"),SEP,("front","Set this view as Front"),("top","Set this view as Top"),SEP,("motion","Scanner motion"),("fullscreen","Full screen")),
-            "Help": (("guide","Getting started"),("scan_steps","First scan steps on the Scan page"),("keys","Keyboard shortcuts"),SEP,("report","Report a problem..."),("about","About PointYoink")),
+            "View": (("compare","Compare"),("home","Home view"),SEP,("perspective","Perspective"),("orthographic","Orthographic"),SEP,("front","Set this view as Front"),("top","Set this view as Top"),SEP,("picture","Use this view as the project picture"),SEP,("motion","Scanner motion"),("fullscreen","Full screen")),
+            "Help": (("guide","Getting started"),("scan_steps","First scan steps on the Scan page"),("keys","Keyboard shortcuts"),SEP,("update","Check for updates..."),("report","Report a problem..."),("about","About PointYoink")),
         }
         self.menu_actions = {}; self.menus = {}
         for name, entries in groups.items():
@@ -290,8 +290,9 @@ class MainWindow(QMainWindow):
                     rename=not imported and not busy and bool(project) and self.header.folder.isVisible(),
                     workspace=True, compare=editing and not imported and not busy, home=True,
                     front=self._active_cube() is not None, top=self._active_cube() is not None,
+                    picture=editing and not imported and not busy and bool(project and os.path.isdir(project)) and bool(self.build.gl),
                     perspective=self._active_view() is not None, orthographic=self._active_view() is not None,
-                    motion=True, keys=True, about=True, guide=True, scan_steps=not imported, fullscreen=True)
+                    motion=True, keys=True, update=True, about=True, guide=True, scan_steps=not imported, fullscreen=True)
 
     def _refresh_menus(self):
         for key, enabled in self._menu_states().items(): self.menu_actions[key].setEnabled(enabled)
@@ -352,10 +353,40 @@ class MainWindow(QMainWindow):
         elif action == "report":
             from app2.diagnostics.report_window import ReportWindow
             self._report_win = ReportWindow(self._report_data, self); self._report_win.show(); self._report_win.raise_()
+        elif action == "picture":
+            from app2.qt.project_picker import save_scene_preview
+            done = save_scene_preview(getattr(self.state, "project", None), self.build.vp.view)
+            self.build.notice("Saved this view as the project picture." if done else "Could not save the picture. Open the model in Build first.", level="info")
+        elif action == "update": self.check_for_updates()
         elif action == "about":
             self.guide_card.dismiss()
             self.keys.hide(); self.scrim.hide()
             self.about_card.show(); self.about_card.raise_(); self._focus_changed(None, QApplication.focusWidget())
+
+    def check_for_updates(self, latest=None):
+        """Ask GitHub on a worker thread, then say what it found. `latest` is a test stand-in for the network call."""
+        import threading, webbrowser
+        from PySide6.QtCore import QTimer
+        from app2 import update_check
+        from app2.version import VERSION
+        wait = QMessageBox(QMessageBox.Icon.Information, "Check for updates", "Checking GitHub...", parent=self)
+        wait.setStandardButtons(QMessageBox.StandardButton.NoButton); wait.show()
+        found = []
+        worker = threading.Thread(target=lambda: found.append(update_check.latest(latest)), daemon=True, name="update-check"); worker.start()
+        def poll():
+            if worker.is_alive(): return
+            timer.stop(); wait.hide(); newest = found[0] if found else ""
+            state = update_check.compare(VERSION, newest)
+            done = QMessageBox(QMessageBox.Icon.Information, "Check for updates", "", parent=self)
+            if state == "newer":
+                done.setText("%s is available. You have %s." % (newest.lstrip("v"), VERSION))
+                get = done.addButton("Open download page", QMessageBox.ButtonRole.AcceptRole); done.addButton(QMessageBox.StandardButton.Close)
+                done.buttonClicked.connect(lambda b: webbrowser.open(update_check.PAGE) if b is get else None)
+            else:
+                done.setText("You have the newest version (%s)." % VERSION if state == "current" else "Could not reach GitHub. Check your connection and try again.")
+                done.addButton(QMessageBox.StandardButton.Ok)
+            self._update_box = done; done.show()
+        timer = QTimer(self); timer.setInterval(100); timer.timeout.connect(poll); timer.start(); self._update_timer = timer
 
     def _report_data(self):
         """What the Report a problem window can include, as the app is right now (the raw text: the window scrubs a copy)."""

@@ -14,7 +14,7 @@ def test_saved_preferences_roundtrip_without_scan_data(tmp_path,monkeypatch):
     monkeypatch.setenv('POINTYOINK_CONFIG',str(tmp_path/'config.json'))
     settings=dict(method='plus',detail=.25,cleanup=1.5,smooth=2,finish=True)
     store.save_preset('Thin bracket',settings)
-    assert store.load_presets()=={'Thin bracket':settings}
+    assert store.load_presets()=={'Thin bracket':dict(store.DEFAULTS,**settings)}      # an older save has no frames/quality/strength: they come back as the defaults
     fragment=store.recipe_fragment(settings)
     assert store.validate_fragment(fragment)==fragment
     assert all(op['tool'] not in ('delete','fin') for ops in fragment['ops'].values() for op in ops)
@@ -66,3 +66,16 @@ def test_cleanup_runs_on_fused_and_old_saves_still_load():
     old = {'set': f['set'], 'reset_nodes': ['fused', 'meshed'],
            'ops': {'fused.tsdf': [], 'meshed': [dict(tool='isolation', params={'rate': 3.0}), dict(tool='smooth', params={'strength': 30.0, 'times': 2})]}}
     assert validate_fragment(old) == f
+
+
+def test_frames_quality_and_strength_reach_the_recipe(tmp_path,monkeypatch):
+    monkeypatch.setenv('POINTYOINK_CONFIG',str(tmp_path/'config.json'))
+    mine=dict(method='points',detail=.3,cleanup=2,smooth=3,finish=False,frames=150,quality=7,strength=60.0)
+    f=store.recipe_fragment(mine)
+    assert f['set']['fused.frames_per_side']==150 and f['set']['meshed.poisson.quality']==7
+    assert f['ops']['meshed']==[dict(tool='smooth',params={'strength':60.0,'times':3})]
+    assert store.validate_fragment(f)==f
+    assert 'meshed.poisson.quality' not in store.recipe_fragment(dict(mine,method='tsdf'))['set']     # only Points builds a Poisson surface
+    assert store.recipe_fragment(store.DEFAULTS)['set']['fused.frames_per_side']==300                 # what every older build used
+    for bad in (dict(frames=10),dict(frames=1001),dict(quality=0),dict(quality=8),dict(strength=1),dict(frames=100.5)):
+        with pytest.raises(ValueError): store.validate(bad)

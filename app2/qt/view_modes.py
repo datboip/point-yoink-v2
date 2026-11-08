@@ -64,6 +64,9 @@ class ViewModes(QWidget):
         self.left_kind=Choices(columns=2);self.row.addWidget(self.left_kind);self.left_kind.hide()
         for key in LEFT:self.left_kind.addItem(LEFT_TEXT[key],key)
         self.left_kind.activated.connect(lambda i:self._pick(self.left_kind.itemData(i)))
+        TIPS={'scan_guide':'Turntable: you will scan the rest with the part on the turntable. The scanner stays put and the part turns, so the suggested spots are scanner positions around it.',
+              'scan_guide_handheld':'Handheld: you will scan the rest by hand. You move the scanner around the part, so the suggested spots are places to hold it.'}
+        for b,(_t,key) in zip(self.left_kind.buttons,self.left_kind.items):b.setToolTip(TIPS[key])
         self.left_kind.setToolTip('How you will scan what is left. Turntable: the scanner stays put and the part turns. Handheld: you move the scanner around the part.')
         self.more=QToolButton(panel.area);self.more.setText('View ▾');self.more.setToolTip('Projection, marked pieces, and Home view settings');self.more.setFocusPolicy(Qt.FocusPolicy.StrongFocus)   # floats by Home view, bottom left
         self.popup=QFrame(self,Qt.WindowType.Popup);self.popup.setStyleSheet('QFrame {background:#20262e;color:#e7edf5;border:1px solid #46515e;}')

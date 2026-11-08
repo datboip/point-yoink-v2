@@ -489,7 +489,9 @@ MORE_TOOLS = {
         slider("Largest hole (mm)", tool="fill_holes", param="hole_mm", lo=0, hi=500, step=1, default=0, fmt="{:g}",
                hint="Closes holes up to this size across. Raise it if holes are left. 0 = Auto, about 4% of the part's size.")], button=APPLY),
     "simplify": dict(name="Simplify", controls=[
-        slider("Triangles to keep", tool="simplify", param="keep_pct", lo=1, hi=99, step=1, default=40, revo=40, unit="%", hint="Keeps this share of the triangles. Lower it for a smaller file.")], button=APPLY),
+        slider("Triangles to keep", tool="simplify", param="keep_pct", lo=1, hi=99, step=1, default=40, revo=40, unit="%", hint="Keeps this share of the triangles. Lower it for a smaller file. With a limit below, this is where it starts."),
+        slider("Most the surface may move (mm)", tool="simplify", param="tol_mm", lo=0, hi=5, step=0.01, default=0, fmt="{:g}",
+               hint="0 = just use the share above. Set a limit (for example 0.05) and the result is measured against the original: if it strayed more than this, more triangles are kept and it is tried again, up to 6 times. The result says how close it came.")], button=APPLY),
     "slivers": dict(name="Remove slivers", controls=[
         slider("Longer than (x usual edge)", tool="slivers", param="factor", lo=1.5, hi=20, step=0.5, default=4, hint="Removes thin triangles this many times longer than a usual edge. Lower it to remove more.")], button=APPLY),
 }
@@ -497,6 +499,8 @@ MORE_TOOLS = {
 # ------------------------------------------------------------------------------------------------ "Applied" list (under the panel)
 def operation_stats(tool, stats, kind):
     """Describe what the operation did, using its result rather than its name."""
+    chk = stats.get("simplify_check") if tool == "simplify" else None
+    if chk: return "{:g}% within {:g} mm, farthest {:g} mm, kept {:g}% of triangles{}".format(chk["within_pct"], chk["tol_mm"], chk["max_mm"], chk["keep_pct"], "" if chk.get("ok") else " (limit not reached)")
     if "moved" in stats: return "Moved {:,} points".format(stats["moved"])
     if tool == "local_fix" and "added_faces" in stats: return "Filled {:,} faces".format(stats["added_faces"]) + (" over {:,.1f} mm2".format(stats["filled_mm2"]) if "filled_mm2" in stats else "")
     if "added_points" in stats: return "Added {:,} points".format(stats["added_points"])
@@ -550,7 +554,7 @@ REBUILD_BAR = dict(
     text="{changed} changed. {rest} will rebuild (about {eta}).",   # rest = "Meshed and Coverage"
     plain_text="{rest} will rebuild (about {eta}).",               # nothing changed here: something the build uses did
     fresh_text="Not built yet \u00b7 about {eta}",                  # a scan never built: nothing to "rebuild"
-    pending_text="{n} delete{s} waiting. The picture shows them gone; Rebuild makes it real.",   # Edit deletes wait for one rebuild (2026-10-25)
+    pending_text="{n} delete{s} waiting.\nThe picture shows them gone. Rebuild makes it real.",   # Edit deletes wait for one rebuild (2026-10-25)
     pending_button="Rebuild",
     fresh_button="Build it",
     button="Rebuild the rest",
@@ -743,11 +747,12 @@ VERSIONS = dict(
 
 # ------------------------------------------------------------------------------------------------ refusals and notices
 NOTICE = dict(
+    nothing_remove="Nothing is selected yet, so Remove has nothing to take out.\nSwitch to New.",
     nothing_box="Nothing under the box or loop. Faces seen edge-on count as hidden: set Reach to Through, or turn the model to face them.",
     nothing_click="No piece under the click. Click on the model itself.",
-    delete_pending="Deleted. {n} delete{s} wait for one rebuild: keep going, then press Rebuild or leave Edit.",
+    delete_pending="Deleted. The picture shows it gone.\nThe model rebuilds in a few seconds, or press Rebuild now.",
     rebuild_now="Rebuilding your deletes first. Try that again when it finishes.",
-    rebuild_first="The model is not built yet. Press Build combined model (or Rebuild in Edit) first.",
+    rebuild_first="The model is not built yet. Press Rebuild first.",
     recording="Pause the scan first: building needs the graphics card the scan is using.",
     scan_build="A build started on the Scan step is running. Tools come back when it is done.",
     locked="The project is being built somewhere else.",

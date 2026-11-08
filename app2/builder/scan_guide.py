@@ -43,8 +43,9 @@ def placement_text(result):
         eye=np.asarray(p['T'])[:3,3]
         height=float((eye@n+d)/norm);distance=float(np.linalg.norm(eye-np.asarray(result['center'])))
         p['height_above_bed_mm']=height;p['distance_from_center_mm']=distance
-        placement=f'Camera {height:.0f} mm above the bed, {distance:.0f} mm from the part center. '
-        if result['mode']=='handheld':placement+='Model position (%g, %g, %g) mm. ' % tuple(np.round(eye,1))
+        placement=f'{height:.0f} mm above the bed, {distance:.0f} mm from the part center'
+        if result['mode']=='handheld':placement+=' (model position %g, %g, %g)' % tuple(np.round(eye,0)+0.)
+        placement+='. '
         p['text']=placement+p['text']
     return result
 
@@ -68,7 +69,7 @@ def guide(project, src, mode='turntable', distance=None, lineup_file=None, frame
     metadata_files+=list(root.glob('data/*/table_plane.json'))+list(root.glob('data/*/cache/*register_pose.pose'))
     metadata_files+=list(root.glob('data/*/param/*.bin'))
     metadata=b''.join(str(p.relative_to(root)).encode()+p.read_bytes() for p in sorted(metadata_files))
-    key=hashlib.sha256(str((9 if live else 8,st.st_size,st.st_mtime_ns,mode,distance,lineup_path)).encode()+metadata).hexdigest()[:16]
+    key=hashlib.sha256(str((10 if live else 9,st.st_size,st.st_mtime_ns,mode,distance,lineup_path)).encode()+metadata).hexdigest()[:16]
     out=root/'build'/('scan-guide-'+key+'.json'); rgb=out.with_suffix('.npy')
     if out.exists() and rgb.exists(): return dict(json.loads(out.read_text()),rgb=str(rgb))
     m=o3d.io.read_triangle_mesh(str(path)); V=np.asarray(m.vertices); T=np.asarray(m.triangles)

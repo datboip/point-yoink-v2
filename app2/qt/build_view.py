@@ -347,10 +347,11 @@ class BuildViewPanel(QWidget):
         self.before_btn.hide()
         self.guide_controls = QWidget(self.area)
         row = QHBoxLayout(self.guide_controls); row.setContentsMargins(0, 0, 0, 0); row.setSpacing(6)
-        self.frame_part = button("Frame part", "float", "Fit the part in the view")
-        self.frame_everything = button("Frame all", "float", "Fit the part and the suggested scanner spots in the view")
+        self.frame_part = button("Frame part", "float", "Zoom to fit just the model in the view")
+        self.frame_everything = button("Frame all", "float", "Zoom out to fit the model and every suggested scanner spot (the ghost scanners). Needs suggested spots.")
         self.guide_ghosts = button("Scanner spots", "float", "Show or hide the suggested scanner spots (ghost scanners) and what each one would see (cones)")
         self.guide_ghosts.setCheckable(True); self.guide_ghosts.setChecked(True)
+        self.ghost_tip = "Show or hide the suggested scanner spots: a ghost scanner for each place to hold the scanner next, with lines for what it would see. The numbered list at the top left matches them."
         for control in (self.frame_part, self.frame_everything, self.guide_ghosts): row.addWidget(control)
         self.guide_controls.hide()
         from app2.qt.scan_guide import frame_view
@@ -632,6 +633,14 @@ class BuildViewPanel(QWidget):
         self.card.anim.setFixedSize(side, side); self.card.adjustSize()
         self.card.move(10 if compact else (a.width() - w) // 2, 52 if compact else max(52, (a.height() - self.card.height()) // 2))
         if self.card.isVisible(): self.card.raise_()
+
+    def set_guide_state(self, guide):
+        """The ghost-scanner buttons work only when the guide has suggested spots; otherwise say why, in their tooltips."""
+        have = bool(guide and guide.get("poses"))
+        reason = (guide or {}).get("reason") or "Saved model placement is needed to suggest positions. Build the line-up first (Rebuild), then they appear."
+        for b, tip in ((self.guide_ghosts, self.ghost_tip), (self.frame_everything, self.frame_everything.toolTip().split(" No suggested")[0])):
+            b.setEnabled(have)
+            b.setToolTip(tip if have else tip + " No suggested spots yet: " + reason)
 
     def _show_guide_ghosts(self, visible):
         if self.gl:

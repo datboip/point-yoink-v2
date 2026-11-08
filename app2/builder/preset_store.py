@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 
-DEFAULTS = dict(method='tsdf', detail=0.4, cleanup=3.0, smooth=0, finish=False)
+DEFAULTS = dict(method='tsdf', detail=0.4, cleanup=3.0, smooth=0, finish=False, frames=300, quality=6, strength=30.0)   # the last three: older saves lack them and get these
 
 
 def validate(settings):
@@ -14,12 +14,14 @@ def validate(settings):
     if set(settings) - set(DEFAULTS): raise ValueError('Unknown preset setting.')
     result = dict(DEFAULTS, **settings)
     if result['method'] not in ('tsdf','points','plus'): raise ValueError('Choose a build method.')
-    for key, low, high in [('detail',0.1,2.0),('cleanup',0,100),('smooth',0,20)]:
+    for key, low, high in [('detail',0.1,2.0),('cleanup',0,100),('smooth',0,20),('frames',50,1000),('quality',1,7),('strength',5,100)]:
         value = result[key]
         if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or not low <= value <= high:
             raise ValueError('Invalid '+key+' value.')
     if int(result['smooth']) != result['smooth']: raise ValueError('Smooth passes must be a whole number.')
     result['smooth'] = int(result['smooth'])
+    if int(result['frames']) != result['frames'] or int(result['quality']) != result['quality']: raise ValueError('Frames and quality must be whole numbers.')
+    result['frames'] = int(result['frames']); result['quality'] = int(result['quality']); result['strength'] = float(result['strength'])
     if not isinstance(result['finish'],bool): raise ValueError('Finish must be on or off.')
     return result
 
@@ -29,11 +31,12 @@ def recipe_fragment(settings):
     fused, mesh = [], []
     # loose pieces go where Classic removes them, on Fused, so the Fused view is already clean (in Meshed it showed floaters)
     if s['cleanup'] > 0: fused.append(dict(tool='isolation',params={'rate':s['cleanup']}))
-    if s['smooth'] > 0: mesh.append(dict(tool='smooth',params={'strength':30.0,'times':s['smooth']}))
+    if s['smooth'] > 0: mesh.append(dict(tool='smooth',params={'strength':s['strength'],'times':s['smooth']}))
     if s['finish']: mesh.append(dict(tool='finish',params={}))
     # an explicit list (empty for cleanup 0) keeps the method's hidden default cleanup from overriding the choice
-    return {'set': {'fused.method':s['method'], 'fused.point_distance':s['detail'],
-                    'fused.frames_per_side':300,'meshed.method':'auto'},
+    chosen = {'fused.method':s['method'], 'fused.point_distance':s['detail'], 'fused.frames_per_side':s['frames'], 'meshed.method':'auto'}
+    if s['method'] == 'points' and s['quality'] != DEFAULTS['quality']: chosen['meshed.poisson.quality'] = s['quality']   # only Points builds a Poisson surface
+    return {'set': chosen,
             'reset_nodes':['fused','meshed'], 'ops':{'fused.'+s['method']:fused, 'meshed':mesh}}
 
 
@@ -42,10 +45,11 @@ def validate_fragment(fragment):
     try:
         params=fragment['set']
         ops=list(fragment['ops'].get('fused.'+params['fused.method'],[]))+list(fragment['ops']['meshed'])   # older saves kept cleanup in Meshed
-        settings=dict(method=params['fused.method'],detail=params['fused.point_distance'],cleanup=0,smooth=0,finish=False)
+        settings=dict(method=params['fused.method'],detail=params['fused.point_distance'],cleanup=0,smooth=0,finish=False,
+                      frames=params['fused.frames_per_side'],quality=params.get('meshed.poisson.quality',DEFAULTS['quality']))
         for op in ops:
             if op['tool']=='isolation': settings['cleanup']=op['params']['rate']
-            elif op['tool']=='smooth': settings['smooth']=op['params']['times']
+            elif op['tool']=='smooth': settings['smooth']=op['params']['times']; settings['strength']=op['params']['strength']
             elif op['tool']=='finish': settings['finish']=True
             else: raise ValueError('This edit cannot be saved in a preset.')
         clean=recipe_fragment(settings)

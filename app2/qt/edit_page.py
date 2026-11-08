@@ -63,6 +63,9 @@ class EditPage(QWidget):
         grid=QGridLayout(); grid.setSpacing(6)
         piece=action("Piece", "magic", True); piece.clicked.connect(lambda:self.set_tool("piece")); piece.setToolTip("Click a piece of the model: the whole connected piece is selected. The quickest way to take table scraps and floaters off.")
         layout.addWidget(piece); self.tools.append(piece); self.tool_buttons["piece"]=piece
+        loose=action("Find loose pieces"); loose.clicked.connect(self.find_loose); self.tools.append(loose); self.loose_button=loose
+        loose.setToolTip("Selects every floating piece in red, all but the biggest, up to the size set below. Look them over, then Delete selected. Remove from takes a piece back out.")
+        layout.addWidget(loose); self.loose_pct, self.loose_row = self._number(layout, "Pieces up to (% of the model)", 1, 50, 5)
         for index,(label,tool,icon_name) in enumerate((("Lasso","lasso","lasso"),("Box","rect","box"),("Brush","brush","brush"),("Magic","magic","magic"))):
             button=action(label,icon_name,True); button.clicked.connect(lambda checked=False,t=tool:self.set_tool(t)); button.setToolTip("Magic previews faces in amber. Click to select them red. A thin bridge may still connect to the main part." if tool=="magic" else "Select faces with "+label.lower()+". Ctrl subtracts.")
             grid.addWidget(button,index//2,index%2); self.tools.append(button); self.tool_buttons[tool]=button
@@ -71,7 +74,7 @@ class EditPage(QWidget):
         self.delete_button=action("Delete selected","delete"); self.delete_button.setFixedHeight(34); self.delete_button.setToolTip("Delete the red selection. Undo restores it.")
         self.delete_button.clicked.connect(lambda:self.build.delete_selection() if self.build else None); layout.addWidget(self.delete_button)
         self.rebuild_button=action("Rebuild"); self.rebuild_button.setToolTip("Deletes leave the picture at once; this runs the one rebuild they wait for. It also runs by itself when you open a shape tool, another stage, or leave Edit.")
-        self.rebuild_button.clicked.connect(lambda:self.build.flush_pending_edits() if self.build else None); self.rebuild_button.hide(); layout.addWidget(self.rebuild_button)
+        self.rebuild_button.clicked.connect(lambda:self.build.rebuild_stale() if self.build else None); self.rebuild_button.hide(); layout.addWidget(self.rebuild_button)
         self.how = QLabel(""); self.how.setWordWrap(True); self.how.setFont(ui_font(11)); self.how.setProperty("role", "hint"); self.how.setMinimumHeight(30); layout.addWidget(self.how)   # how the active tool is used
         def narrow(lab):
             """A label that never widens the column: it wraps or clips instead (the palette was pushed past its column, 2026-10-25)."""
@@ -97,16 +100,18 @@ class EditPage(QWidget):
         self.brush.valueChanged.connect(lambda value:self._view_setting("brush_px",value)); self.angle.valueChanged.connect(lambda value:self._view_setting("magic_angle",value))
         self.sections.append(section(2, "Adjust the selection"))
         select_row=QHBoxLayout(); self.invert_button=action("Invert","invert-selection"); self.clear_button=action("Clear","clear-selection")
-        self.invert_button.clicked.connect(lambda:self.build.vp.sel_invert.click() if self.build else None); self.clear_button.clicked.connect(lambda:self.build.clear_selection() if self.build else None)
+        self.invert_button.clicked.connect(lambda:self.build.vp.sel_invert.click() if self.build else None); self.clear_button.clicked.connect(lambda:(self.mode.setCurrentText("Replace"),self.build.clear_selection() if self.build else None))
         self.clear_button.setToolTip("Clears the selection. The model is not changed.")
         select_row.addWidget(self.invert_button); select_row.addWidget(self.clear_button); layout.addLayout(select_row)
         grow_row=QHBoxLayout(); self.topology_tools = []
         for label,op,icon_name in (("Grow","grow","select-through"),("Shrink","shrink","clear-selection"),("Connected piece","connected","magic")):
             button=action(label,icon_name); button.clicked.connect(lambda checked=False,o=op:self.topology(o))
-            button.setToolTip("Adds one ring of joined faces. It can cross a thin bridge into the main part." if op=="grow" else "Selects the entire joined piece, including thin bridges." if op=="connected" else "Removes one boundary ring from the selection.")
+            button.setToolTip("Grows the selection by the size below, along joined faces. It can cross a thin bridge into the main part." if op=="grow" else "Selects the entire joined piece, including thin bridges." if op=="connected" else "Shrinks the selection by the size below from its edge.")
             self.tools.append(button)
             self.topology_tools.append(button)
-            if op=="connected": layout.addLayout(grow_row); layout.addWidget(button)
+            if op=="connected":
+                layout.addLayout(grow_row); self.grow_mm, grow_mm_row = self._number(layout, "Grow or Shrink by (mm)", 1, 100, 3)
+                self.grow_mm.setToolTip("How far one Grow or Shrink click moves the edge of the selection, along the surface."); layout.addWidget(button)
             else:grow_row.addWidget(button)
         self.sections.append(section(3, "Change the model"))
         undo_row=QHBoxLayout(); undo_row.setContentsMargins(0, 0, 0, 0); self.undo_button=action("Undo","undo"); self.redo_button=action("Redo","redo")
@@ -189,7 +194,7 @@ class EditPage(QWidget):
         if getattr(build,"published",None):
             build.published=None;build.request_view()
         self.title.setText({"side": "Side surface", "fused": "Fused surface", "meshed": "Finished model"}.get(getattr(build, 'stage', None), "Edit model"))
-        self.set_mode(self.mode.currentText()); self._view_setting("brush_px", self.brush.value()); self._view_setting("magic_angle", self.angle.value())
+        self.mode.setCurrentText("Replace"); self.set_mode(self.mode.currentText()); self._view_setting("brush_px", self.brush.value()); self._view_setting("magic_angle", self.angle.value())
         build.on_pending_edits = self._pending
         self._pending(getattr(build, "pending_edits", 0))
         self.timer.start(); self.sync(); build.show()
@@ -230,6 +235,8 @@ class EditPage(QWidget):
         self.options_button.setToolTip(label);self.options_button.setAccessibleName(label)
 
     def _pending(self, n):
+        if n > getattr(self, "_pending_n", 0): self.mode.setCurrentText("Replace")      # a delete done: the next selection starts fresh, not stuck in Remove
+        self._pending_n = n
         self.rebuild_button.setVisible(n > 0); self.rebuild_button.setText("Rebuild (%d delete%s waiting)" % (n, "" if n == 1 else "s"))
 
     def open_tool(self, name, action=None):
@@ -259,9 +266,17 @@ class EditPage(QWidget):
     def set_tool(self, tool):
         if self.build is not None: self.build.set_tool(tool)
 
+    def find_loose(self):
+        if self.build is None or not self.build.gl or self.build.running(): return
+        got = self.build.vp.view.select_loose(self.loose_pct.value())
+        if got is None: self.build.notice("Loose pieces works on a mesh.\nPick Side or Meshed."); return
+        pieces, faces = got
+        self.build.notice("No loose pieces up to %d%% of the model.\nRaise the size to look for bigger ones." % self.loose_pct.value() if not pieces
+                          else "%s loose piece%s selected (%s faces).\nLook %s over, then press Delete selected." % (format(pieces, ","), "" if pieces == 1 else "s", format(faces, ","), "it" if pieces == 1 else "them"), level="info")
+
     def topology(self, operation):
         if self.build is None or not self.build.gl or self.build.running(): return
-        if not self.build.vp.view.topology_selection(operation): self.build.notice("Selection did not change.")
+        if not self.build.vp.view.topology_selection(operation, self.grow_mm.value()): self.build.notice("Selection did not change.")
 
     def pick_stage(self, key):
         """Edit another level: the side you are on, the fused points, or the finished mesh."""
@@ -281,6 +296,9 @@ class EditPage(QWidget):
 
     def sync(self):
         build = self.build
+        if build is not None and hasattr(build, "stale_stage_count") and not getattr(build, "pending_edits", 0):
+            n = build.stale_stage_count()          # out of date with nothing waiting: the same Rebuild button, so Edit never needs a trip to Build
+            self.rebuild_button.setVisible(n > 0); self.rebuild_button.setText("Rebuild (%d stage%s out of date)" % (n, "" if n == 1 else "s"))
         stage = getattr(build, 'stage', None) if build else None
         side = (build._side() or {}).get("n") if build is not None and stage == "side" and hasattr(build, "_side") else None
         self.title.setText({"side": "Side surface", "fused": "Fused surface", "meshed": "Finished model"}.get(stage, "Edit model").replace("side  ", "side "))

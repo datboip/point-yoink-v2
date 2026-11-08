@@ -2,6 +2,18 @@
 
 All notable changes to PointYoink.
 
+## 2.0.4
+
+- Help > Check for updates asks GitHub for the newest release when you choose it (nothing runs on its own).
+- YOLO Yoink: every finished build and every Ultra Yoink step saves a picture of your own part under its recipe, and the cards and the big preview show it ("Your part, built ..."). A recipe with no picture yet shows a "No picture yet" tile. Card text is no longer cut off. The Advanced tab has Frames per side, Surface quality (Points only) and Smooth strength; Name and Save preset moved under the dropdown; Custom comes last. Ultra Yoink is a real button, hidden on Advanced.
+- Ultra Yoink window: picture cards with readable text, a facts box on each card and one height for all cards.
+- Simplify can keep the surface within a distance you set (Most the surface may move, in mm). It measures both ways, raises the kept share and tries again if the limit is missed, and reports "x% within y mm, farthest z mm".
+- The What is left overlay says each thing once and draws the scan number beside each ghost scanner. Scanner spots and Frame all are off, with the reason in their tooltip, when the line-up is not saved. Turntable and Handheld have tooltips. The STL size estimate has its own line and is no longer cut off.
+- View > Use this view as the project picture. The project picture is not saved while an overlay is on.
+- Edit: Find loose pieces selects every floating piece (up to a size you set) so one Delete takes them. Grow and Shrink move by a distance in mm. The selection mode starts on New. Remove from an empty selection says so. Edit has its own Rebuild button when stages are out of date, and a rebuild that applies waiting deletes no longer leaves "1 delete waiting" behind. After a delete the faces hide at once, and the one rebuild starts by itself after four quiet seconds (not while faces are selected), or sooner with Rebuild. A delete no longer shows a loading card of its own; the rebuild after it does.
+- When the scanner is on Wi-Fi but its USB side stopped answering, the app says "Scanner not on USB" and to turn the scanner off and on, instead of "connect the USB cable".
+- Fixed: choosing a received project crashed with KeyError: 'mesh'. Own-part pictures of big models were skipped by a size limit that was too low. The memory limit no longer stops the Simplify distance check on large scans.
+
 ## 2.0.3
 
 - Fixed: `process.py` and `viewer.py` were missing from the repo and from every package so far, so Simplify, Fill holes, Slivers and the Ball pivoting mesh method did not work in 2.0.0 to 2.0.2. They are in now, and tests check that every script the engine runs is present and that Simplify runs end to end. If you use those tools, install this version.

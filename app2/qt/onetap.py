@@ -36,7 +36,10 @@ def preset_facts(name):
     cleanup = next((float(o['params']['rate']) for o in ops if o['tool'] == 'isolation' and o.get('on', True)), 0)
     smooth = next((int(o['params'].get('times', 1)) for o in ops if o['tool'] == 'smooth' and o.get('on', True)), 0)
     finish = any(o['tool'] == 'finish' and o.get('on', True) for o in recipe.get('ops', {}).get('meshed', []))
-    return dict(method=method, detail=float(fused['point_distance']), cleanup=cleanup, smooth=smooth, finish=finish)
+    frames = int(fused.get('frames_per_side') or 1000)
+    quality = int(PR.resolve(recipe, 'meshed', 'poisson')['quality'])
+    return dict(method=method, detail=float(fused['point_distance']), cleanup=cleanup, smooth=smooth, finish=finish,
+                frames=max(50, min(1000, frames)), quality=quality, strength=store.DEFAULTS['strength'])
 
 
 from stages import params as _PR
@@ -46,6 +49,7 @@ METHOD_NAMES = {'tsdf': 'Standard', 'points': 'Points', 'plus': 'Plus'}
 
 def facts_line(f):
     text = '%s, %g mm, cleanup %g%%' % (METHOD_NAMES[f['method']], f['detail'], f['cleanup'])
+    if f.get('frames', 300) != 300: text += ', %d frames/side' % f['frames']
     if f['smooth']: text += ', smooth x%d' % f['smooth']
     if f['finish']: text += ', print-ready'
     return text
@@ -55,6 +59,40 @@ def preset_choices():
     from stages import params as PR
     out=[(k,label,HINTS.get(k,'Build with these settings.')) for k,label,hint in W.ONETAP['presets'] if k in PR.PRESETS]
     return [('auto','Auto Yoink',HINTS['auto'])]+out+[('custom','Custom',HINTS['custom'])]
+
+
+CARD_STYLE = ('QPushButton {text-align:left;border:1px solid #414b58;border-radius:7px;background:#282e36;} QPushButton:checked {background:#274a78;border-color:#639feb;} '
+              'QPushButton:hover {border-color:#639feb;} QPushButton QLabel {background:transparent;color:#e6ebf2;}')
+
+
+def own_icon():
+    """Stand-in picture for Custom and saved cards (no demo part exists for them): three sliders, so the cards line up with the rest."""
+    from PySide6.QtCore import QRectF
+    from PySide6.QtGui import QPixmap, QPainter, QColor, QPen
+    pix = QPixmap(100, 69); pix.fill(QColor('#1d2229'))
+    p = QPainter(pix); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    for i, knob in enumerate((.3, .7, .5)):
+        y = 18 + i * 17; p.setPen(QPen(QColor('#414b58'), 3)); p.drawLine(14, y, 86, y)
+        p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor('#639feb')); p.drawEllipse(QRectF(14 + 72 * knob - 5, y - 5, 10, 10))
+    p.end(); return pix
+
+
+def recipe_card(text, pix):
+    """A card button: its picture and a word-wrapped text beside it (a button's own text cannot wrap, so long lines were cut off)."""
+    from PySide6.QtGui import QPixmap
+    card = QPushButton(); card.setCheckable(True); card.setFixedHeight(96); card.setMinimumWidth(0)
+    row = QHBoxLayout(card); row.setContentsMargins(12, 6, 12, 6); row.setSpacing(10)
+    card.pic = QLabel(); card.pic.setFixedSize(100, 69); card.pic.setAlignment(Qt.AlignmentFlag.AlignCenter); card.pic.setPixmap(pix)
+    card.text = QLabel(text); card.text.setWordWrap(True); card.text.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+    card.text.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred); card.text.setMinimumWidth(0)
+    for w in (card.pic, card.text): w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents); row.addWidget(w, 0 if w is card.pic else 1)
+    return card
+
+
+def fit_pix(path_or_pix, w=100, h=69):
+    from PySide6.QtGui import QPixmap
+    pix = path_or_pix if isinstance(path_or_pix, QPixmap) else QPixmap(path_or_pix)
+    return pix.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
 
 def tidy(text):
@@ -73,14 +111,16 @@ class OneTapDialog(QFrame):
     custom_changed=Signal(object)
     custom_ok=Signal(object)
     cancel=Signal()
+    ultra=Signal()
     size_changed=Signal()
 
     def __init__(self,parent=None):
         super().__init__(parent); self.setObjectName('KeysSheet'); self.current=None; self._loading=False; self.settings_set=False
-        self.choices=preset_choices(); self.saved={}; self.load_error=''
+        self.choices=preset_choices(); self.saved={}; self.load_error=''; self.pictures={}
         try: self.saved=store.load_presets()
         except (ValueError,OSError) as exc: self.load_error='Saved presets could not be read.'
-        self.choices += [('saved:'+name,name,'Your saved build settings.') for name in self.saved]
+        own=self.choices.pop()                                           # Custom ("make your own") goes last, after the presets and the saved ones
+        self.choices += [('saved:'+name,name,'Your saved build settings.') for name in self.saved] + [own]
         v=QVBoxLayout(self); v.setContentsMargins(26,20,26,16); v.setSpacing(8)
         title=QLabel('YOLO Yoink'); title.setFont(ui_font(20,QFont.Weight.DemiBold)); title.setFixedHeight(34); title.setAlignment(Qt.AlignmentFlag.AlignCenter); v.addWidget(title)
         tabs=QHBoxLayout(); tabs.setSpacing(6)
@@ -89,7 +129,9 @@ class OneTapDialog(QFrame):
             tab.setCheckable(True); tab.setFixedHeight(32); tabs.addWidget(tab)
         tabs.addStretch(1); v.addLayout(tabs)
         self.selector=QComboBox(); self.selector.setMaxVisibleItems(8); self.selector.setFixedHeight(36)
-        for key,label,hint in self.choices: self.selector.addItem(label,key)
+        for key,label,hint in self.choices:
+            if key=='custom': self.selector.insertSeparator(self.selector.count())      # a line above Custom
+            self.selector.addItem(label,key)
         self.btns={key:self.selector for key,label,hint in self.choices}
         self.selector.currentIndexChanged.connect(lambda i:self.pick(self.selector.itemData(i),True))
         self.preset_row_widget=QWidget(); preset_row=QHBoxLayout(self.preset_row_widget); preset_row.setContentsMargins(0,0,0,0); preset_row.addWidget(self.selector,1)
@@ -105,23 +147,20 @@ class OneTapDialog(QFrame):
         self.simple_page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff); self.simple_page.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         cards=QWidget(); self.card_grid=QGridLayout(cards); self.card_grid.setContentsMargins(0,4,0,4); self.card_grid.setSpacing(8)
         self.profile_cards={}
-        subtitles={'auto':'Let the app choose (Classic)', 'custom':'Make it your own', **W.RECIPE['card_sub']}
+        subtitles={'auto':'Let the app choose (Classic)', 'custom':'Set your own numbers', **W.RECIPE['card_sub']}
         for key,label,hint in self.choices:
             facts=facts_line(preset_facts(key)) if key in FACTS else ('Start from any preset, then edit' if key=='custom' else (facts_line(dict(store.DEFAULTS, **self.saved[key[6:]])) if key.startswith('saved:') and key[6:] in self.saved else ''))
-            fact=W.RECIPE['card_facts'].get('today' if key=='auto' else key,'')
-            card=QPushButton(label+'\n'+subtitles.get(key,'Your saved settings')+('\n'+fact if fact else '')); card.setCheckable(True); card.setFixedHeight(96 if fact else 60)
+            fact=W.RECIPE['card_facts'].get('today' if key=='auto' else key,'') or facts
             pic=os.path.join(os.path.dirname(__file__),'assets','presets','%s.png' % ('today' if key=='auto' else key))
-            if os.path.exists(pic):           # the same clip and recess built with this recipe: what it keeps, what it smooths
-                from PySide6.QtGui import QIcon
-                from PySide6.QtCore import QSize
-                card.setIcon(QIcon(pic)); card.setIconSize(QSize(100, 69))
-            card.setMinimumWidth(0); card.setToolTip(hint+('\n'+facts if facts else ''))       # the numbers on hover (and in Advanced): the card says what it is for
-            card.setStyleSheet('QPushButton {text-align:left;padding:6px 12px;border:1px solid #414b58;border-radius:7px;background:#282e36;} QPushButton:checked {background:#274a78;border-color:#639feb;} QPushButton:hover {border-color:#639feb;}')
+            card=recipe_card(label+'\n'+subtitles.get(key,'Your saved settings')+('\n'+fact if fact else ''),fit_pix(pic) if os.path.exists(pic) else own_icon())   # the demo part built with this recipe, or three sliders
+            card.setToolTip(hint+('\n'+facts if facts else ''))       # the numbers on hover (and in Advanced): the card says what it is for
+            card.setStyleSheet(CARD_STYLE)
             card.clicked.connect(lambda checked=False,k=key:self.pick(k,True))
-            index=len(self.profile_cards);self.card_grid.addWidget(card,index//2,index%2);self.profile_cards[key]=card
-        self.card_grid.setRowStretch((len(self.profile_cards)+1)//2,1)
+            self.profile_cards[key]=card
+        self.card_line=QFrame(); self.card_line.setFrameShape(QFrame.Shape.HLine); self.card_line.setStyleSheet('color:#414b58;')
         self.card_grid.setColumnStretch(0,1); self.card_grid.setColumnStretch(1,1)       # two equal columns, whatever the text
         for c in self.profile_cards.values(): c.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._lay_cards()
         self.simple_page.setWidget(cards); self.pages.addWidget(self.simple_page)
         self.advanced_page=QScrollArea(); self.advanced_page.setWidgetResizable(True)
         self.advanced_page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -136,19 +175,30 @@ class OneTapDialog(QFrame):
         self.detail=QDoubleSpinBox(); self.detail.setRange(.1,2); self.detail.setSingleStep(.05); self.detail.setDecimals(2); self.detail.setSuffix(' mm'); self.detail.setValue(.4)
         self.cleanup=QDoubleSpinBox(); self.cleanup.setRange(0,100); self.cleanup.setSingleStep(.5); self.cleanup.setSuffix(' %'); self.cleanup.setValue(3)
         self.smooth=QSpinBox(); self.smooth.setRange(0,20)
-        for row,(text,control) in enumerate([('Build method',self.method),('Detail size',self.detail),('Remove loose pieces',self.cleanup),('Smooth passes',self.smooth)]):
+        self.frames=QSpinBox(); self.frames.setRange(50,1000); self.frames.setSingleStep(50); self.frames.setValue(300)
+        self.frames.setToolTip('The most frames used from each side, spread evenly. Fewer builds faster; more can add detail but takes longer and can blur the surface.')
+        self.quality=QSpinBox(); self.quality.setRange(1,7); self.quality.setValue(6)
+        self.quality.setToolTip('How finely the Points method builds its surface, 1 (coarse) to 7 (finest, slowest). Standard and Plus builds do not use it.')
+        self.strength=QSpinBox(); self.strength.setRange(5,100); self.strength.setSingleStep(5); self.strength.setSuffix(' %'); self.strength.setValue(30)
+        self.strength.setToolTip('How hard each smooth pass works. Only matters when Smooth passes is above 0.')
+        for row,(text,control) in enumerate([('Build method',self.method),('Detail size',self.detail),('Remove loose pieces',self.cleanup),('Smooth passes',self.smooth),
+                                             ('Frames per side',self.frames),('Surface quality',self.quality),('Smooth strength',self.strength)]):
             control.setFixedHeight(30); g.addWidget(QLabel(text),row//2,(row%2)*2); g.addWidget(control,row//2,(row%2)*2+1)
-        self.finish=QCheckBox('Finish for print after building'); self.finish.setFixedHeight(30); g.addWidget(self.finish,2,0,1,4)
+        self.finish=QCheckBox('Finish for print after building (closed and smooth, about 250,000 triangles)'); self.finish.setFixedHeight(30); g.addWidget(self.finish,4,0,1,4)
+        self.finish.setToolTip('After the build, makes one smooth, closed model of about 250,000 triangles, ready for the slicer: holes are closed, the surface is smoothed and the file is kept small (about 12.5 MB as STL). Leave it off to keep the model as scanned. You can still run Finish for print later in Build, and set its triangle count, smoothness and hole filling there.')
         self.finish.setStyleSheet('QCheckBox {spacing:8px;} QCheckBox::indicator {width:16px;height:16px;border:1px solid #8290a6;border-radius:3px;background:#151a21;} QCheckBox::indicator:checked {background:#5b9df0;border:2px solid #dceaff;}')
-        self.controls.setFixedHeight(106); av.addWidget(self.controls)
+        self.controls.setFixedHeight(184); av.addWidget(self.controls)
         helptext=QLabel('Custom settings: smaller detail takes longer. Zero cleanup keeps loose pieces.'); helptext.setFixedHeight(24)
         help_row=QHBoxLayout(); help_row.addWidget(helptext,1)
-        self.custom_help=HelpButton('Custom settings', 'Cleanup removes pieces below this share of the largest piece. Smooth passes soften noise. Save preset keeps these settings for another scan.')
+        self.custom_help=HelpButton('Custom settings', 'Cleanup removes pieces below this share of the largest piece. Smooth passes soften noise, and Smooth strength sets how hard each pass works. Frames per side is how many frames each side contributes. Surface quality applies to the Points method only. Save preset keeps these settings for another scan.')
         help_row.addWidget(self.custom_help); av.addLayout(help_row)
-        save=QHBoxLayout(); self.name=QLineEdit(); self.name.setPlaceholderText('Name these settings'); self.name.setMaxLength(60); self.name.setFixedHeight(32)
+        # naming and saving sit right under the preset picker (Advanced only), not in the middle of the numbers
+        self.save_row_widget=QWidget(); sv=QVBoxLayout(self.save_row_widget); sv.setContentsMargins(0,0,0,0); sv.setSpacing(2)
+        save=QHBoxLayout(); self.name=QLineEdit(); self.name.setPlaceholderText('Name these settings to save them'); self.name.setMaxLength(60); self.name.setFixedHeight(32)
         self.save_b=button('Save preset','quiet'); self.save_b.setFixedSize(116,32); self.save_b.clicked.connect(self.save_current)
-        save.addWidget(self.name,1); save.addWidget(self.save_b); av.addLayout(save)
-        self.save_note=StableLabel('',1); self.save_note.setFixedHeight(24); av.addWidget(self.save_note)
+        save.addWidget(self.name,1); save.addWidget(self.save_b); sv.addLayout(save)
+        self.save_note=StableLabel('',1); self.save_note.setFixedHeight(22); sv.addWidget(self.save_note)
+        v.insertWidget(v.indexOf(self.preset_row_widget)+1,self.save_row_widget)
         grid=QGridLayout(); grid.setHorizontalSpacing(14); grid.setVerticalSpacing(4); self.lines=[]; self.keys=[]
         for row,text in enumerate(['Build detail','Cleanup','Surface','Final changes']):
             label=QLabel(text); label.setFixedHeight(30); line=StableLabel('',2); line.setFixedHeight(30)
@@ -156,17 +206,42 @@ class OneTapDialog(QFrame):
         grid.setColumnStretch(1,1); av.addLayout(grid); av.addStretch(1)
         self.foot=StableLabel('',2); self.foot.setFixedHeight(38); v.addWidget(self.foot)
         row=QHBoxLayout(); self.cancel_b=big_button('Cancel','quiet'); self.ok_b=big_button('Yoink it','build')
-        self.cancel_b.setFixedHeight(44); self.ok_b.setFixedHeight(44); row.addWidget(self.cancel_b); row.addWidget(self.ok_b); v.addLayout(row)
+        self.ultra_b=big_button('Ultra Yoink','default'); self.ultra_b.setFixedHeight(44)
+        self.ultra_b.setToolTip('Builds several recipes on this part, one after another, so you can flip between the results and keep the best. It shows the time and disk space first.')
+        self.ultra_b.clicked.connect(self.ultra.emit)
+        self.cancel_b.setFixedHeight(44); self.ok_b.setFixedHeight(44); row.addWidget(self.cancel_b); row.addWidget(self.ultra_b); row.addWidget(self.ok_b); v.addLayout(row)
         self.cancel_b.clicked.connect(self.cancel.emit); self.ok_b.clicked.connect(self.run)
         self.method.currentIndexChanged.connect(self.changed)
-        for c in (self.detail,self.cleanup,self.smooth): c.valueChanged.connect(self.changed)
+        for c in (self.detail,self.cleanup,self.smooth,self.frames,self.quality,self.strength): c.valueChanged.connect(self.changed)
         self.finish.toggled.connect(self.changed)
         self.set_mode(False); self.fix_size(); self.hide()
+
+    def show_pictures(self, project):
+        """Put the user's own part on every card whose recipe has built it in this project (the rest keep the demo clip)."""
+        from PySide6.QtGui import QIcon, QPixmap
+        from app2.recipe_pictures import existing, when, key_of
+        self.pictures=existing(project) if project else {}
+        for key,card in self.profile_cards.items():
+            own=self.pictures.get(key_of(key))
+            if own:
+                pix=QPixmap(own[0]).scaled(100,69,Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
+                card.pic.setPixmap(fit_pix(pix)); card.setToolTip(card.toolTip().split('\nYour part')[0]+'\nYour part, built %s' % when(own[1]))
+        if self.current: self._refresh_preview(self.current)
+
+    def _lay_cards(self):
+        """Presets and saved ones in two columns, then a line, then Custom across the bottom."""
+        for w in [*self.profile_cards.values(), self.card_line]: self.card_grid.removeWidget(w)
+        for r in range(self.card_grid.rowCount()+1): self.card_grid.setRowStretch(r,0)
+        rest=[k for k,_l,_h in self.choices if k!='custom' and k in self.profile_cards]
+        for i,k in enumerate(rest): self.card_grid.addWidget(self.profile_cards[k],i//2,i%2)
+        row=(len(rest)+1)//2
+        self.card_grid.addWidget(self.card_line,row,0,1,2); self.card_grid.addWidget(self.profile_cards['custom'],row+1,0,1,2)
+        self.card_grid.setRowStretch(row+2,1)
 
     def set_mode(self, advanced):
         self.pages.setCurrentIndex(1 if advanced else 0)
         self.simple_b.setChecked(not advanced); self.advanced_b.setChecked(advanced)
-        self.preset_row_widget.setVisible(advanced)
+        self.preset_row_widget.setVisible(advanced); self.save_row_widget.setVisible(advanced); self.ultra_b.setVisible(not advanced)
         self.hint.setVisible(advanced)
         self.fix_size(); self._refresh_hint()
         if self.parentWidget() is not None:
@@ -191,21 +266,47 @@ class OneTapDialog(QFrame):
         if self.current: self._refresh_preview(self.current)
 
     def settings(self):
-        return dict(method=self.method.currentData(),detail=self.detail.value(),cleanup=self.cleanup.value(),smooth=self.smooth.value(),finish=self.finish.isChecked())
+        return dict(method=self.method.currentData(),detail=self.detail.value(),cleanup=self.cleanup.value(),smooth=self.smooth.value(),finish=self.finish.isChecked(),
+                    frames=self.frames.value(),quality=self.quality.value(),strength=float(self.strength.value()))
+
+    def _gate(self):
+        """Grey out what the current choices would ignore: quality is for Points only, strength needs a smooth pass."""
+        self.quality.setEnabled(self.method.currentData()=='points'); self.strength.setEnabled(self.smooth.value()>0)
 
     def payload(self): return {'preset':self.current,'fragment':store.recipe_fragment(self.settings())}
 
     def _refresh_preview(self,key):
         name='today' if key=='auto' else key
         pic=os.path.join(os.path.dirname(__file__),'assets','presets','%s.png' % name)
-        if not key or not os.path.exists(pic): self.preview.hide(); return
+        from app2.recipe_pictures import key_of
+        own=self.pictures.get(key_of(key))                 # the user's own part built with this recipe, when there is one
+        if own: pic=own[0]
+        if not key: self.preview.hide(); return
+        if not os.path.exists(pic): self._placeholder(key); return
         from PySide6.QtGui import QPixmap
         self.preview_pic.setPixmap(QPixmap(pic).scaled(self.preview_pic.size(),Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation))
         label=next((l for k,l,_h in self.choices if k==key),key)
         self.preview_text.setText('<b>%s</b><br>%s<br><br><span style="color:#8b95a1">%s<br>Example: a clip and raised lettering on a test part, built with this recipe. Ultra Yoink builds your own scan every way to compare.</span>'
                                   % (label, HINTS.get(name,''), W.RECIPE['card_facts'].get(name,'')))
+        if own:
+            from app2.recipe_pictures import when
+            self.preview_text.setText('<b>%s</b><br>%s<br><br><span style="color:#8b95a1">%s<br>Your part, built with this recipe on %s.</span>'
+                                      % (label, HINTS.get(name,''), W.RECIPE['card_facts'].get(name,''), when(own[1])))
         if self.parentWidget() and self.parentWidget().window().height() <= 900:
             self.preview_text.setText('<b>%s</b><br>%s' % (label, HINTS.get(name, '')))
+        self.preview.show()
+
+    def _placeholder(self,key):
+        """Cards with no picture (Custom, saved settings, nothing built yet): a plain tile that says so."""
+        from PySide6.QtGui import QPixmap, QPainter, QColor
+        size=self.preview_pic.size(); pix=QPixmap(size); pix.fill(QColor('#1d2229'))
+        p=QPainter(pix); p.setPen(QColor('#8b95a1')); p.drawText(pix.rect(),Qt.AlignmentFlag.AlignCenter,'No picture yet'); p.end()
+        self.preview_pic.setPixmap(pix)
+        label=next((l for k,l,_h in self.choices if k==key),key)
+        hint=next((h for k,_l,h in self.choices if k==key),'')
+        self.preview_text.setText('<b>%s</b><br>%s<br><br><span style="color:#8b95a1">Not built on your part yet. Yoink it, or run Ultra Yoink, and its picture shows up here.</span>' % (label,hint))
+        if self.parentWidget() and self.parentWidget().window().height() <= 900:
+            self.preview_text.setText('<b>%s</b><br>%s' % (label,hint))
         self.preview.show()
 
     def pick(self,key,ask=False):
@@ -220,7 +321,9 @@ class OneTapDialog(QFrame):
         if settings is not None:
             self.settings_set=True
             self.method.setCurrentIndex(self.method.findData(settings['method'])); self.detail.setValue(settings['detail']); self.cleanup.setValue(settings['cleanup']); self.smooth.setValue(settings['smooth']); self.finish.setChecked(settings['finish'])
-        self.controls.setEnabled(editable); self.name.setEnabled(editable); self.save_b.setEnabled(editable)
+            self.frames.setValue(settings['frames']); self.quality.setValue(settings['quality']); self.strength.setValue(int(settings['strength']))
+        self.controls.setEnabled(editable); self.name.setEnabled(editable); self.save_b.setEnabled(editable); self._gate()
+        self.name.clear()                                  # the box is for a NEW name: never the picked preset's own name again
         if ask and key=='custom': self.set_mode(True)
         self._refresh_preview(key)
         self._refresh_hint()
@@ -236,6 +339,7 @@ class OneTapDialog(QFrame):
 
     def changed(self,*args):
         if self._loading:return
+        self._gate()
         if self.current!='custom':
             self.current='custom'; self.selector.blockSignals(True); self.selector.setCurrentIndex(self.selector.findData('custom')); self.selector.blockSignals(False)
         self._pending(); self.custom_changed.emit(self.payload())
@@ -244,15 +348,16 @@ class OneTapDialog(QFrame):
         try:
             name=store.save_preset(self.name.text(),self.settings()); self.saved[name]=self.settings(); key='saved:'+name
             if key not in self.btns:
-                self.choices.append((key,name,'Your saved build settings.')); self.selector.addItem(name,key); self.btns[key]=self.selector
+                at=next(i for i,c in enumerate(self.choices) if c[0]=='custom')       # before Custom, which stays at the bottom
+                self.choices.insert(at,(key,name,'Your saved build settings.')); self.selector.insertItem(self.selector.findData('custom')-1,name,key); self.btns[key]=self.selector
             if key not in self.profile_cards:
-                card=QPushButton(name+'\nYour saved settings\n'+facts_line(dict(store.DEFAULTS,**self.settings()))); card.setCheckable(True); card.setFixedHeight(76); card.setMinimumWidth(0)
-                card.setStyleSheet(next(iter(self.profile_cards.values())).styleSheet()); card.setToolTip(name)
+                card=recipe_card(name+'\nYour saved settings\n'+facts_line(dict(store.DEFAULTS,**self.settings())),own_icon()); card.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed)
+                card.setStyleSheet(CARD_STYLE); card.setToolTip(name)
                 card.clicked.connect(lambda checked=False,k=key:self.pick(k,True))
-                index=len(self.profile_cards); self.card_grid.setRowStretch(index//2,0)
-                self.card_grid.addWidget(card,index//2,index%2); self.profile_cards[key]=card
-                self.card_grid.setRowStretch((len(self.profile_cards)+1)//2,1)
-            self.save_note.setText('Saved '+name)
+                self.profile_cards[key]=card; self._lay_cards()
+            self.current=key; self.selector.blockSignals(True); self.selector.setCurrentIndex(self.selector.findData(key)); self.selector.blockSignals(False)
+            for k,c in self.profile_cards.items(): c.setChecked(k==key)       # the saved settings are now the picked ones: one name, shown once
+            self.name.clear(); self.save_note.setText('Saved '+name)
         except (ValueError,OSError) as exc:self.save_note.setText(str(exc))
 
     def run(self):

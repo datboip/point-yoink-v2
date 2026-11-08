@@ -697,7 +697,8 @@ class DeviceProjects(QFrame):
         row = current.data(0, Qt.UserRole + 1) if current else None
         if row:
             self.detail.setText(f"{row['name']} · {row['sides']} side" + ('s' if row['sides'] != 1 else '') +
-                                (f" · {row['files']} files" if row.get('files') is not None else "") + f" · {'Finished mesh included' if row['mesh'] else 'No finished mesh yet'}")
+                                (f" · {row['files']} files" if row.get('files') is not None else "") +
+                                ("" if row.get('mesh') is None else f" · {'Finished mesh included' if row['mesh'] else 'No finished mesh yet'}"))   # a received project has no scanner listing to say
         else: self.detail.setText('Full project import includes raw scan files and any finished results.')
         self._buttons()
 

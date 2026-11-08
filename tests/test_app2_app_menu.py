@@ -118,3 +118,20 @@ def test_report_a_problem_gathers_with_no_project(tmp_path):
         data=win._report_data()                      # crashed: the scan log panel had no toPlainText
         assert data is not None
     finally: win.close()
+
+
+@pytest.mark.parametrize('answer,words',[('v99.0.0','is available'),('v0.0.1','newest version'),('','Could not reach')])
+def test_check_for_updates_says_what_it_found(tmp_path,answer,words):
+    from app2.qt.shell import MainWindow
+    app=QApplication.instance() or QApplication([])
+    def offline(*args,**kwargs): raise RuntimeError('No device in menu test')
+    win=MainWindow(offline,gl=False,projects_dir=str(tmp_path)); win.resize(1280,800); win.show(); app.processEvents()
+    try:
+        assert win.menu_actions['update'] in win.menus['Help'].actions() and win.menu_actions['update'].isEnabled()
+        win.check_for_updates(latest=lambda:answer)
+        for _ in range(60):
+            QTest.qWait(50)
+            if getattr(win,'_update_box',None) is not None: break
+        assert words in win._update_box.text()
+        win._update_box.close()
+    finally: win.close()

@@ -239,6 +239,7 @@ TOOL_PARAMS = {
     ],
     ("simplify", "mesh"): [
         P("keep_pct", "float", 40.0, 1, 99, 1, "%", label="Simplify Ratio", revo=40.0, help="keep this share of faces (fast_simplification)"),
+        P("tol_mm", "float", 0.0, 0, 5, 0.01, "mm", label="Largest change (mm)", help="0 = off. Otherwise the result is measured against the original, both ways, and more faces are kept (up to 6 tries) until 99.9% of it is within this"),
     ],
     ("smooth", "mesh"): [
         P("strength", "float", 30.0, 5, 100, 5, "%", label="Smooth", revo=30.0, help="Taubin lambda = clip(0.5 x strength/30, 0.05, 0.9); runaway vertices pinned back"),

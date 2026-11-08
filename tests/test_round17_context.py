@@ -76,7 +76,7 @@ def test_pose_text_names_height_distance_and_handheld_coordinates():
     r=dict(bed=[[0,1,0],-10],center=[0,0,0],mode='handheld',poses=[dict(T=T.tolist(),text='Tilt down 20 degrees')])
     placement_text(r);p=r['poses'][0]
     assert p['height_above_bed_mm']==70 and p['distance_from_center_mm']==pytest.approx(np.sqrt(46400))
-    assert '70 mm above the bed' in p['text'] and 'part center' in p['text'] and 'Model position' in p['text']
+    assert '70 mm above the bed' in p['text'] and 'part center' in p['text'] and 'model position' in p['text']
 
 
 def test_suggestion_rank_three_does_not_use_done_green():

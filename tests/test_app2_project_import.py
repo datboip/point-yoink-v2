@@ -74,6 +74,8 @@ def test_wifi_received_projects_move_straight_into_the_library(tmp_path, monkeyp
     d = DeviceProjects(str(lib)); d._t0 = time.monotonic(); d._place_received(str(stage))
     assert (lib / 'ProjectX' / 'data' / 'side1').is_dir() and not stage.exists()     # moved, holding folder gone
     assert d.just_imported and 'Received 1 project' in d.status.text()
+    d.files.setCurrentItem(d.files.topLevelItem(0)); d.update_selection()     # picking a received project once raised KeyError: 'mesh'
+    assert d.detail.text().startswith('ProjectX') and 'mesh' not in d.detail.text()
 
 
 def test_screenshots_and_recordings_tabs_list_and_pick(tmp_path, monkeypatch):

@@ -83,7 +83,7 @@ class _ProcessTool(_MeshTool):
         text = ctx.call(args, mem_gb=self.mem_gb, env=PROC_ENV)
         st = {}
         for ln in text.splitlines():
-            if ln.startswith("STAGE ") and ln.split(" ", 2)[1] in ("filled", "slivers", "cleaned", "done"):
+            if ln.startswith("STAGE ") and ln.split(" ", 2)[1] in ("filled", "slivers", "cleaned", "done", "simplify_check"):
                 import json
                 try: st[ln.split(" ", 2)[1]] = json.loads(ln.split(" ", 2)[2])
                 except ValueError: pass
@@ -103,9 +103,13 @@ class FillHoles(_ProcessTool):
 class Simplify(_ProcessTool):
     name = "simplify"; label = "Simplify"; version = 1; mem_gb = 6
 
-    def flags(self, p): return ["--simplify-pct", str(p["keep_pct"])]
+    def flags(self, p):
+        tol = float(p.get("tol_mm") or 0)
+        return ["--simplify-pct", str(p["keep_pct"])] + (["--simplify-tol", str(tol)] if tol > 0 else [])
 
-    def summary(self, p): return "%s %%" % PR.fmt(p["keep_pct"])
+    def summary(self, p):
+        tol = float(p.get("tol_mm") or 0)
+        return "%s %%" % PR.fmt(p["keep_pct"]) + (", within %s mm" % PR.fmt(tol) if tol > 0 else "")
 
 
 @register

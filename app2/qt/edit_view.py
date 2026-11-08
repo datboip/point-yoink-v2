@@ -346,7 +346,7 @@ class EditView(QOpenGLWidget):
     def invert_selection(self):
         if self.selection is not None and len(self.selection): self.selection = ~self.selection; self.clear_hover(); self._push_flags()
 
-    def topology_selection(self, operation):
+    def topology_selection(self, operation, mm=0):
         """Use the same face topology operations as the original mesh editor."""
         import mesh_ops
         item = self.items.get(self.edit_key, {})
@@ -355,10 +355,34 @@ class EditView(QOpenGLWidget):
         if self._face_graph_cache is None: self._face_graph_cache = mesh_ops.FaceGraph(faces)
         fn = {"grow": mesh_ops.grow_face_selection, "shrink": mesh_ops.shrink_face_selection,
               "connected": mesh_ops.connected_face_selection}[operation]
-        changed = fn(faces, self.selection, graph=self._face_graph_cache)
+        steps = 1
+        if mm and operation in ("grow", "shrink"):
+            V = np.asarray(item["V"]); F = np.asarray(faces); F = F[::max(1, len(F) // 20000)]
+            edge = float(np.linalg.norm(V[F[:, 1]] - V[F[:, 0]], axis=1).mean()) if len(F) else 0.0
+            steps = int(min(500, max(1, round(float(mm) / edge)))) if edge > 0 else 1       # rings of faces that add up to about mm along the surface
+        changed = self.selection
+        for _ in range(steps):
+            nxt = fn(faces, changed, graph=self._face_graph_cache)
+            if np.array_equal(nxt, changed): break
+            changed = nxt
         did_change = not np.array_equal(changed, self.selection)
         self.selection = changed; self.would_go = None; self._push_flags()
         return did_change
+
+    def select_loose(self, max_pct=5.0):
+        """Select every floating piece: the pieces other than the biggest one that hold at most max_pct % of the faces.
+        Returns (pieces, faces) selected, or None when this item is not a mesh."""
+        import mesh_ops
+        item = self.items.get(self.edit_key, {})
+        if item.get("kind") != "mesh" or not self.tools_on: return None
+        faces = item["F"]
+        if self._face_graph_cache is None: self._face_graph_cache = mesh_ops.FaceGraph(faces)
+        _, inverse, counts = np.unique(self._face_graph_cache.components(), return_inverse=True, return_counts=True)
+        loose = counts <= max(1, len(faces) * float(max_pct) / 100.0); loose[int(np.argmax(counts))] = False
+        mask = loose[inverse]
+        if self.gone is not None and len(self.gone) == len(mask): mask = mask & ~self.gone
+        self.selection = mask.copy(); self.would_go = None; self.clear_hover(); self._push_flags()
+        return int(loose.sum()), int(mask.sum())
 
     def _apply_selection(self, got):
         if self.gone is not None and len(self.gone) == len(got): got = got & ~self.gone      # deleted, rebuild pending: not pickable
@@ -622,6 +646,8 @@ class EditView(QOpenGLWidget):
         if self.tool in ("rect", "lasso", "brush") and len(self._stroke) >= {"rect":2,"lasso":3,"brush":1}[self.tool] and self.n:
             got = self.select_mask(self._mask(), self.through)
             if len(got) != len(self.selection): got = np.zeros(len(self.selection), bool)     # never mix two results
+            if getattr(self, "selection_mode", "replace") == "subtract" and self.selection is not None and not self.selection.any() and got.any():
+                self.selected_nothing.emit("subtract"); self._stroke = []; self.overlay.update(); return     # Remove from an empty selection does nothing: say so
             if not got.any() and self.tool in ("rect", "lasso"): self.selected_nothing.emit(self.tool)
             self._apply_selection(got)
         self._stroke = []; self.overlay.update(); self._push_flags()

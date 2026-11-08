@@ -46,20 +46,12 @@ def paint(view):
                 x,y,z=view.cam.project(display_points(view,np.asarray(V)[idx]),width,height);p.setPen(QPen(col,3))
                 for xx,yy,zz in zip(x,y,z):
                     if zz>0 and np.isfinite(xx):p.drawPoint(QPointF(xx,yy))
-    p.setPen(QColor('#f0f2f5'))
-    p.drawText(QPointF(15,75),'Suggested scanner spots for: '+('Handheld' if guide.get('mode')=='handheld' else 'Turntable'))
-    row_y=95
-    for color,text in (('#ff4632','Not scanned yet (holes)'),('#b45ae6','Rough or doubled, scan again'),('#46d778','Done')):
-        p.setPen(QColor(color));p.drawText(QPointF(15,row_y),text);row_y+=20
-    row_y+=5
-    for i,pose in enumerate(guide['poses']):
-        p.setPen(QColor(pose['color']));text=f'{pose["rank"]}. {pose["text"]}'
-        box=p.boundingRect(QRectF(15,row_y,width-30,10000),Qt.TextFlag.TextWordWrap.value,text)
-        p.drawText(QRectF(15,row_y,width-30,box.height()+2),Qt.TextFlag.TextWordWrap.value,text);row_y+=box.height()+8
-    if guide.get('reason'):
-        p.setPen(QColor('#ffbe55'));p.drawText(QPointF(15,55),guide['reason'])
-    if guide.get('needs_flip'):
-        p.setPen(QColor('#ffbe55'));p.drawText(QPointF(15,55),'Bed side needs the part flipped')
+    # the numbered poses, the color key and the reasons are listed once, in the What is left panel: here each ghost scanner just carries its number
+    f=p.font();f.setBold(True);f.setPixelSize(15);p.setFont(f)
+    for pose in guide['poses']:
+        x,y,z=view.cam.project(display_points(view,[np.asarray(pose['T'],float)[:3,3]]),width,height)
+        if getattr(view,"guide_ghosts",True) and z[0]>0 and np.isfinite(x[0]):
+            p.setPen(QColor(pose['color']));p.drawText(QPointF(x[0]+10,y[0]-10),str(pose['rank']))
     p.end()
 
 

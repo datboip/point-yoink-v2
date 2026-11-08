@@ -13,6 +13,10 @@ TEXT = {
            "Scanner not connected. Connect the USB cable and choose PC mode on the scanner to scan. Saved sides can still be built, edited and exported."),
 }
 
+wifi_alive = False                                  # set by the motion panel: the scanner is sending motion over Wi-Fi right now
+HUNG = ("Scanner not on USB",
+        "The scanner is on Wi-Fi but its USB side stopped answering, so a new cable will not help. Turn the scanner off and on, then choose PC mode.")
+
 
 def usb_mode(root="/sys/bus/usb/devices"):
     """'transfer', 'pc', 'other' (a Rockchip device in another mode) or None (no scanner on USB)."""
@@ -31,5 +35,10 @@ def usb_mode(root="/sys/bus/usb/devices"):
     return found
 
 
-def pill_text(): return TEXT.get(usb_mode(), TEXT[None])[0]
-def help_text(): return TEXT.get(usb_mode(), TEXT[None])[1]
+def _text(i):
+    m = usb_mode()
+    return HUNG[i] if m is None and wifi_alive else TEXT.get(m, TEXT[None])[i]
+
+
+def pill_text(): return _text(0)
+def help_text(): return _text(1)

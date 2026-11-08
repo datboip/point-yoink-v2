@@ -19,7 +19,7 @@ def test_orientation_is_applied_before_guide_bounds(monkeypatch):
     monkeypatch.setattr(scan_guide,'show',lambda v,g,**kw:observed.append(v.items['main'].get('model',np.eye(4)).copy()))
     noop=lambda *a,**kw:None
     controls=[]
-    viewport=NS(view=view,guide_controls=NS(setVisible=lambda value:controls.append(value)),_place=noop)
+    viewport=NS(view=view,guide_controls=NS(setVisible=lambda value:controls.append(value)),_place=noop,set_guide_state=noop)
     p=NS(view_id=7,fin=NS(clear=noop),slice_tool=NS(clear=noop),vp=viewport,
          _should_frame=lambda _:False,_scan_guides={('/mesh.ply','scan_guide'):{'poses':[]}},
          colour_mode={'meshed':'scan_guide'},stage='meshed',_ghost_legend=noop,
