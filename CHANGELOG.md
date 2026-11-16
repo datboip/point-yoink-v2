@@ -2,6 +2,17 @@
 
 All notable changes to PointYoink.
 
+## 2.0.5
+
+- Fixed: the Points / Poisson build (the Revo-style recipes) cut every depth frame at 60 cm, even for Far scans and big parts, so anything farther was lost. It now uses each side's own depth limit, the same as the side build.
+- Fixed: USB import could not connect while the desktop (GNOME) had opened the scanner by itself. The app now lets go of that connection and tries again, and the message no longer blames file manager windows.
+- Fixed: Ctrl+C or a kill during an import left the app open. It now stops the transfer, releases USB and closes.
+- Fixed: a Projects folder changed in Preferences did not reach the Import page.
+- Import: clicking anywhere on a project row ticks it (Models), a second click clears it.
+- The window fits smaller screens when it opens.
+- The rebuild question no longer says "rebuilds 0 later edits".
+- Third-party notices list every package the setup installs, with the tested versions.
+
 ## 2.0.4
 
 - Help > Check for updates asks GitHub for the newest release when you choose it (nothing runs on its own).

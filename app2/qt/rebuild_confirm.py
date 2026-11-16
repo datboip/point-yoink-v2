@@ -19,5 +19,6 @@ class RebuildConfirm(QFrame):
         self.hide()
     def describe(self, action, label, later):
         self.title.setText(action + ' this edit?')
-        self.text.setText(label + '\n\nThis changes the mesh and rebuilds %d later edit%s. Earlier stages are reused when possible. It may take a while. Undo can restore this edit.' % (later, '' if later == 1 else 's'))
+        redo = ('This changes the mesh and rebuilds %d later edit%s.' % (later, '' if later == 1 else 's')) if later else 'This changes the mesh. No later edits need rebuilding.'
+        self.text.setText(label + '\n\n' + redo + ' Earlier stages are reused when possible. It may take a while. Undo can restore this edit.')
         self.go.setText(action + ' and rebuild')

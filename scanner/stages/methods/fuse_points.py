@@ -27,7 +27,7 @@ class FusedPoints(Method):
     def execute(self, ctx):
         ctx.legacy("fuse", msg="fusing all sides into one model")
         job = {"sides_json": ctx.inputs["lineup"].files["sides"], "project": ctx.project.root, "params": ctx.params,
-               "side_deletes": ctx.step.leaf.get("side_deletes", {}), "stages": ctx.project.stages,
+               "side_deletes": ctx.step.leaf.get("side_deletes", {}), "max_depth": ctx.step.leaf.get("max_depth", {}), "stages": ctx.project.stages,
                "side_cache": os.environ.get("POINTYOINK_SIDE_FUSION_CACHE", "1") != "0"}
 
         def on_line(ln):
@@ -138,7 +138,7 @@ def side_worker(sid):
             poses = read_global_poses(os.path.join(c["project"], side["folder"], "cache", "pointyoink_register_pose.pose"))
         try:
             for f in iter_frames(c["sides_json"], c["project"], max_per_side=c["max_per_side"], only_sides=[sid],
-                                 side_deletes=c["side_deletes"], stages_dir=c["stages"]):
+                                 side_deletes=c["side_deletes"], stages_dir=c["stages"], max_depth_mm=float(c.get("max_depth", {}).get(sid, 600.0))):
                 Pc, Nc, w = camera_points(f, c["step"], c["edge_px"], c["z0"])
                 if len(Pc) == 0: continue
                 if writer: writer.append(Pc, Nc, w, poses[f.key])
@@ -165,9 +165,9 @@ def job(job):
     if len(ids) > 64: raise RuntimeError("fused.points supports at most 64 sides (side bitmask)")
     if not ids: raise ValueError("fused.points needs at least one side")
     CFG.update(sides_json=sj, project=job["project"], cell=p["point_distance"], step=p["step"], max_per_side=p["frames_per_side"],
-               edge_px=p["edge_px"], z0=p["z0"], side_deletes=job.get("side_deletes", {}), stages=job["stages"])
-    CFG["tables"] = table_paths(sj, job["project"], job["stages"], p, CFG["side_deletes"]) if job.get("side_cache", True) else {}
-    CFG["locals"] = local_paths(sj, job["project"], job["stages"], p, CFG["side_deletes"]) if job.get("side_cache", True) and os.environ.get("POINTYOINK_LOCAL_POINTS_CACHE", "1") != "0" else {}
+               edge_px=p["edge_px"], z0=p["z0"], side_deletes=job.get("side_deletes", {}), max_depth=job.get("max_depth", {}), stages=job["stages"])
+    CFG["tables"] = table_paths(sj, job["project"], job["stages"], p, CFG["side_deletes"], CFG["max_depth"]) if job.get("side_cache", True) else {}
+    CFG["locals"] = local_paths(sj, job["project"], job["stages"], p, CFG["side_deletes"], CFG["max_depth"]) if job.get("side_cache", True) and os.environ.get("POINTYOINK_LOCAL_POINTS_CACHE", "1") != "0" else {}
     res, nfr, cached, local_cached = {}, {}, [], []
     with Pool(max(1, min(int(p["workers"]), len(ids))), initializer=_worker_threads) as pool:
         for k, (sid, n, K, C, secs, hit, local_hit) in enumerate(pool.imap_unordered(side_worker, ids)):

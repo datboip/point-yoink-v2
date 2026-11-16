@@ -150,6 +150,23 @@ def _cleanup_owned_mount(path, token):
     return True
 
 
+def release_desktop_mount(run=subprocess.run):
+    """GNOME (gvfs) opens the scanner as an mtp:// mount by itself, and while it holds it jmtpfs cannot connect.
+    Let go of that mount (only the Revopoint one). Returns the mtp:// addresses released."""
+    import shutil
+    if not shutil.which('gio'): return []
+    try: listing = run(['gio', 'mount', '-l'], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired): return []
+    gone = []
+    for line in listing.splitlines():
+        m = re.search(r'(mtp://\S+)', line)
+        if not m or not re.search(r'revopoint|miraco|2207', line, re.I): continue
+        try:
+            if run(['gio', 'mount', '-u', m.group(1)], capture_output=True, text=True, timeout=15).returncode == 0: gone.append(m.group(1))
+        except (OSError, subprocess.TimeoutExpired): pass
+    return gone
+
+
 def mount_device(path, notify=emit):
     _device_allowed(); path = Path(path).absolute()
     if mounted(path):
@@ -170,10 +187,15 @@ def mount_device(path, notify=emit):
     with os.fdopen(fd,'w') as handle: json.dump(receipt,handle)
     proc = None
     try:
-        proc = subprocess.Popen(['jmtpfs', str(path), '-device=%d,%d' % (bus,device), '-o', 'fsname='+marker], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        _out, error = proc.communicate(timeout=35)
+        for attempt in (1, 2):
+            proc = subprocess.Popen(['jmtpfs', str(path), '-device=%d,%d' % (bus,device), '-o', 'fsname='+marker], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            _out, error = proc.communicate(timeout=35)
+            if not (proc.returncode or mount_source(path) != marker) or attempt == 2: break
+            try: released = release_desktop_mount()      # the desktop's own scanner mount blocks ours: let go of it, then try once more
+            except Exception: released = []
+            if not released: break
         if proc.returncode or mount_source(path) != marker:
-            raise ValueError('USB could not open. Choose File Transfer and close file-manager windows using the scanner, then retry.')
+            raise ValueError('USB could not open the scanner. Make sure it is in File Transfer mode and that no other program (a photo or file app) is using it, then retry.')
         notify('mounted', mountpoint=str(path), root=str(path/'Internal shared storage'), owned=True, token=token)
     except BaseException:
         if proc is not None and proc.poll() is None:

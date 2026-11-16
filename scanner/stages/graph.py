@@ -148,6 +148,7 @@ def build(project, recipe, with_params=None):
         return available(os.path.join(project.folder(side.id),"cache"),has_images=images)
     color_mode=PR.resolve(recipe,"fused",PR.method_of(recipe,"fused",wp),None,wp)["color"]
     color_actual="off" if color_mode=="off" or (color_mode=="auto" and not all(side_has_color(s) for s in g.active)) else "on"
+    side_depth={}                                    # per-side depth limit when it is not the default (Far mode raises it): the points path needs it too
     for s in sides:
         m = get_method("side.fuse", PR.method_of(recipe, "side.fuse", wp))
         fuse_params=PR.resolve(recipe,"side.fuse",m.name,s.id,wp)
@@ -161,6 +162,7 @@ def build(project, recipe, with_params=None):
         depth_spec=next(p for p in PR.COMMON['side.fuse'] if p.name=='max_depth')
         if capture.get('mode')=='far' and 'far' in capture and 'max_depth' not in explicit and 'max_depth' not in global_explicit and fuse_params['max_depth']==depth_spec.default and 'side.fuse.max_depth' not in wp and ('side[%s].fuse.max_depth'%s.id) not in wp:
             fuse_params['max_depth']=depth_spec.coerce(max(depth_spec.default,capture['far']))
+        if fuse_params['max_depth']!=depth_spec.default: side_depth[s.id]=fuse_params['max_depth']
         g.add(Step(id="side.fuse@" + s.id, kind="side.fuse", group="side", side=s.id, n=s.n, method=m,
                    params=fuse_params, leaf={"frames": project.frames_fp(s.id)},
                    store="side.fuse@" + s.id, active=s.active))
@@ -224,7 +226,7 @@ def build(project, recipe, with_params=None):
     side_deletes = {sid: ops for sid, ops in side_deletes.items() if ops}
     fst = g.add(Step(id="fused", kind="fused", group="fused", method=fm, params=PR.resolve(recipe, "fused", fm.name, None, wp),
                      inputs={"lineup": "lineup.adjust"}, leaf={"frames": {s.id: project.frames_fp(s.id) for s in g.active},
-                                                                  "side_deletes": side_deletes},
+                                                                  "side_deletes": side_deletes, **({"max_depth": side_depth} if side_depth else {})},
                      store="fused", produces=fm.produces))
     fst.params["color"]=color_actual
     # an absent fused.<method> list means the method's default_ops (they live in code until the first edit)

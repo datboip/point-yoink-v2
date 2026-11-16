@@ -905,6 +905,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'device_projects') and self.device_projects.isVisible():
             e.ignore()
             if self.device_projects.proc:
+                if getattr(self, "force_close", False):           # Ctrl+C or a kill: stop the transfer, release USB, then close by itself
+                    self._projects_quit = True; self.device_projects.dismiss_when_done = True
                 self.device_projects.cancel()
                 self.device_projects.status.setText('Transfer canceled. Click Done to release USB, then close the app.')
                 return

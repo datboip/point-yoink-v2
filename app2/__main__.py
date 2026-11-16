@@ -237,7 +237,9 @@ def main(argv=None):
     from app2.diagnostics.driver import maybe_start
     maybe_start(w)                                      # the developer driver: only when POINTYOINK_DRIVER names a socket
     if splash and splash.screen() is not None:          # open on the splash's screen, not wherever the mouse went meanwhile
-        area = splash.screen().availableGeometry(); w.move(area.center() - w.rect().center())
+        area = splash.screen().availableGeometry()
+        w.resize(max(w.minimumWidth(), min(w.width(), int(area.width() * .94))), max(w.minimumHeight(), min(w.height(), int(area.height() * .94))))   # a small screen gets a window that fits
+        w.move(area.center() - w.rect().center())
     w.show()
     if splash: splash.finish(w)
     # Ctrl+C in the terminal or a plain kill: Finish (every side saved, the scanner left as found), no questions asked

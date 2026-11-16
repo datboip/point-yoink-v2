@@ -12,17 +12,21 @@ The `.deb` carries none of these. The setup window installs them with pip into y
 | NumPy | 2.4.2 | BSD-3-Clause |
 | SciPy | 1.17.1 | BSD-3-Clause |
 | Open3D | 0.19.0 | MIT |
-| OpenCV (opencv-python-headless) | 5.0 | Apache-2.0 |
-| PyMeshLab | 2025.7 | GPL-3.0 |
+| OpenCV (opencv-python-headless) | 5.0.0.93 | Apache-2.0 |
+| PyMeshLab | 2025.7.post1 | GPL-3.0 |
 | trimesh | 5.1.0 | MIT |
+| fast-simplification | 0.2.0 | MIT |
 | PyOpenGL | 3.1.10 | BSD |
-| Pillow | 10.2.0 | MIT-CMU |
+| Pillow | 12.3.0 | MIT-CMU |
+| lz4 | 4.4.5 | BSD-3-Clause |
+| threadpoolctl | 3.6.0 | BSD-3-Clause |
 | psutil | 7.2.2 | BSD-3-Clause |
-| NetworkX | 3.6.1 | BSD-3-Clause |
+| NetworkX (3MF export) | 3.6.1 | BSD-3-Clause |
+| lxml (3MF export) | 5.2.1 | BSD-3-Clause |
 
 ## Used at runtime, installed from your distribution
 
-Not bundled; pulled in as package dependencies (and `ffmpeg`, optional, for capture thumbnails and lengths): Python 3, Tk (`python3-tk`), Pillow (`python3-pil`, `python3-pil.imagetk`), NumPy, Matplotlib, NetworkX, `jmtpfs` / `libmtp` (MTP access to the scanner), `rsync`, `xdg-utils`, FUSE. Optional: Open3D for building and combining models on the PC (see the README for how to install it).
+Not bundled; the `.deb` depends on Python 3 with venv, Tk (`python3-tk`, only for the setup window), and the OpenGL / EGL and X libraries Qt needs. USB import from the scanner uses `jmtpfs` / `libmtp` and FUSE, and timelapse clips use `ffmpeg` (both optional, from your distribution).
 
 ## Fonts
 

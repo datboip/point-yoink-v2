@@ -258,6 +258,7 @@ class DeviceProjects(QFrame):
             QProgressBar::chunk {background:#5b9df0;border-radius:4px;}
         ''')
         self.library = str(Path(library or default_dir()).expanduser().resolve())
+        self._from_default = self.library == str(Path(default_dir()).expanduser().resolve())   # only then follow Preferences later
         self.mountpoint = str(Path.home()/'.cache/pointyoink/device-projects-mtp')
         self.root = None; self.receipt = None; self.proc = None; self.mode = None
         self.buffer = ''; self.failed = False; self.paused = False; self.incomplete = False; self.skipped = []
@@ -412,8 +413,17 @@ class DeviceProjects(QFrame):
     def pick_library(self):
         d = QFileDialog.getExistingDirectory(self, 'Save imported projects to', self.library)
         if not d: return
-        self.library = str(Path(d).resolve()); self._show_library()
+        self.library = str(Path(d).resolve()); self._picked_here = True; self._show_library()
         if self.default_c.isChecked(): set_default(self.library)
+
+    _picked_here = False
+
+    def showEvent(self, event):
+        """The Projects folder may have changed in Preferences since this page was made: follow it, unless a folder was picked here."""
+        if not self._picked_here and self._from_default:
+            current = str(Path(default_dir()).expanduser().resolve())
+            if current != self.library: self.library = current; self._show_library()
+        super().showEvent(event)
 
     def _show_library(self):
         home = str(Path.home()); t = self.library.replace(home, '~', 1) if self.library.startswith(home) else self.library
@@ -765,7 +775,11 @@ class DeviceProjects(QFrame):
         if s and not self.eye_b.isChecked(): s = '\u2022' * len(s)     # fully hidden by default: nothing to match in a screenshot
         self.dev_serial.setText(('serial ' + s) if s else ''); self.eye_b.setVisible(bool(self._serial))
 
-    def _toggle_copy(self, item, col): pass
+    def _toggle_copy(self, item, col):
+        """A click anywhere on a project row ticks it for import (Models), or clears it; the Models and Full cells keep their own ticks."""
+        if col in (3, 5) or item.parent() is not None or self.mode == 'wifi': return      # Wi-Fi rows have no ticks
+        if self.picked(item): item.setCheckState(3, Qt.Unchecked); item.setCheckState(5, Qt.Unchecked)
+        else: item.setCheckState(3, Qt.Checked)
 
     def _expanded(self, item):
         """The arrow opened a project: read its side pictures (the placeholder child keeps the arrow showing until then)."""
@@ -1036,6 +1050,8 @@ class DeviceProjects(QFrame):
         if not process: return
         self.read(); mode = self.mode; error = bytes(process.readAllStandardError()).decode('utf8','replace')
         self.timer.stop(); self.proc = None; process.deleteLater()
+        if self.dismiss_when_done and mode != 'unmount':          # the app is closing: release USB and leave
+            self.dismiss_when_done = False; QTimer.singleShot(0, self.dismiss); return
         if mode == 'wifi':                                       # the receiver ended: nothing left on screen from it
             link_status.set_wifi(None); self.code.setText(''); self.code_box.hide(); self.progress.setRange(0, 100); self.progress.setValue(0); self.progress.setTextVisible(False)
             self.way_b[1].set_state(T['ink3'], 'Receiver off')
@@ -1075,6 +1091,8 @@ class DeviceProjects(QFrame):
         if error == QProcess.FailedToStart:
             self.timer.stop(); self.proc.deleteLater(); self.proc = None; self._buttons()
             self.status.setText('Could not start the transfer worker.')
+
+    dismiss_when_done = False
 
     def cancel(self):
         if self.proc:

@@ -22,7 +22,7 @@ from .keys import DigestMemo, H
 VERSION = 1
 
 
-def local_paths(sj, project, stages, params, deletes):
+def local_paths(sj, project, stages, params, deletes, depth=None):
     memo = DigestMemo(os.path.join(stages, "cache", "side-fusion-digests.json"))
     settings = {k: params[k] for k in ("step", "frames_per_side", "edge_px", "z0")}
     here = os.path.dirname(__file__)
@@ -40,7 +40,8 @@ def local_paths(sj, project, stages, params, deletes):
                  "libs": {name: version(name) for name in ("numpy", "scipy")},
                  "plane": side.get("plane"), "size": side.get("size", [800, 600]),
                  "frames": files, "poses": memo.digest(os.path.join(cache, "pointyoink_register_pose.pose")),
-                 "calibration": memo.digest(os.path.join(folder, "param", "Pl.bin")), "deletes": ops, "regions": regions})
+                 "calibration": memo.digest(os.path.join(folder, "param", "Pl.bin")), "deletes": ops, "regions": regions,
+                 **({"max_depth": depth[sid]} if depth and sid in depth else {})})
         paths[sid] = (os.path.join(stages, "cache", "side-local-points", sid, key), key)
     memo.save()
     return paths

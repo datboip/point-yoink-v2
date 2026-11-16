@@ -14,7 +14,7 @@ from .keys import DigestMemo, H
 VERSION = 1
 
 
-def table_paths(sj, project, stages, params, deletes):
+def table_paths(sj, project, stages, params, deletes, depth=None):
     """Hash every selected depth file, pose table, calibration, cut, placement and accumulation setting.
 
     A shared digest memo avoids rereading unchanged depth bytes. Worker count, side order and global
@@ -36,7 +36,8 @@ def table_paths(sj, project, stages, params, deletes):
         key = H({"version": VERSION, "code": code, "libs": {name: version(name) for name in ("numpy", "scipy")}, "settings": settings, "side": sid,
                  "T": s["T"], "plane": s.get("plane"), "size": s.get("size", [800, 600]),
                  "frames": files, "poses": memo.digest(os.path.join(cache, "pointyoink_register_pose.pose")),
-                 "calibration": memo.digest(os.path.join(folder, "param", "Pl.bin")), "deletes": ops, "regions": regions})
+                 "calibration": memo.digest(os.path.join(folder, "param", "Pl.bin")), "deletes": ops, "regions": regions,
+                 **({"max_depth": depth[sid]} if depth and sid in depth else {})})
         paths[sid] = (os.path.join(stages, "cache", "side-fusion", sid, key + ".npz"), key)
     memo.save()
     return paths
