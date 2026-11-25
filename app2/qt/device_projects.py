@@ -912,7 +912,7 @@ class DeviceProjects(QFrame):
                              'import':'Copying complete projects...', 'wifi':'Waiting for scanner Wi-Fi transfer...',
                              'unmount':'Releasing USB...', 'capcopy':'Copying from the scanner...'}[mode])
         self.progress.setRange(0,100 if mode=='wifi' else 0);self.progress.setValue(0)
-        self.progress.setVisible(mode!='wifi');self.progress.setTextVisible(False);self._buttons()
+        self.progress.setVisible(mode in ('import','capcopy'));self.progress.setTextVisible(False);self._buttons()   # only a copy shows the bar: reading the list is not an import
         self.timer.start(60000 if mode != 'wifi' else 1800000); process.start()
 
     def read(self):

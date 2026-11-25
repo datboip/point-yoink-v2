@@ -2,6 +2,14 @@
 
 All notable changes to PointYoink.
 
+## 2.0.6
+
+- Update notice: once a day at start, PointYoink looks on GitHub for a newer release and says so once, with a Download button. Preferences > General can turn it off.
+- YOLO Yoink has a Compare tab: your own part as each recipe built it, side by side, newest first, with Use this recipe on each card.
+- Import: the progress bar shows only while copying, not while reading the scanner's project list.
+- Scan page: the settings column in Advanced no longer runs 2 px past its panel (the right edge was clipped).
+- A Revopoint RANGE plugged in is named as such and left alone (no light, gain or stream commands). RANGE support comes in 2.0.7.
+
 ## 2.0.5
 
 - Fixed: the Points / Poisson build (the Revo-style recipes) cut every depth frame at 60 cm, even for Far scans and big parts, so anything farther was lost. It now uses each side's own depth limit, the same as the side build.

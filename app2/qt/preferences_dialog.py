@@ -113,6 +113,8 @@ class PreferencesDialog(QDialog):
         col = box("When PointYoink starts", "Takes effect the next time PointYoink starts.")
         self.open_last = QCheckBox("Open the newest project instead of the Projects page"); self.open_last.setChecked(g["open_last"]); col.addWidget(self.open_last)
         self.open_last.toggled.connect(lambda on: G.save(open_last=bool(on)))
+        self.update_notice = QCheckBox("Tell me when a new version is out (looks on GitHub once a day)"); self.update_notice.setChecked(g["update_notice"])
+        col.addWidget(self.update_notice); self.update_notice.toggled.connect(lambda on: G.save(update_notice=bool(on)))
         layout.addStretch(1)
 
     def _folders_tab(self):

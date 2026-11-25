@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication
 def test_defaults_bounds_and_round_trip(tmp_path, monkeypatch):
     monkeypatch.setenv("POINTYOINK_CONFIG", str(tmp_path / "config.json"))
     from app2 import general_prefs as G
-    assert G.load() == dict(default_look="shaded", light_minutes=5, timelapse_watermark=True, open_last=False)
+    assert G.load() == dict(default_look="shaded", light_minutes=5, timelapse_watermark=True, open_last=False, update_notice=True, update_checked=0, update_seen="")
     G.save(default_look="scan_color", light_minutes=200, timelapse_watermark=False, open_last=True, junk=1)
     g = G.load(); assert g["default_look"] == "scan_color" and g["light_minutes"] == 60 and not g["timelapse_watermark"] and g["open_last"]
     assert "junk" not in json.loads((tmp_path / "config.json").read_text())["general"]
@@ -23,7 +23,7 @@ def test_general_tab_writes_the_config(tmp_path, monkeypatch):
     try:
         assert d.tabs.tabText(0) == "General"
         d.default_look.setCurrentIndex(1); d.light_minutes.setValue(12); d.timelapse_watermark.setChecked(False); d.open_last.setChecked(True); app.processEvents()
-        g = G.load(); assert g == dict(default_look="scan_color", light_minutes=12, timelapse_watermark=False, open_last=True)
+        g = G.load(); assert g == dict(default_look="scan_color", light_minutes=12, timelapse_watermark=False, open_last=True, update_notice=True, update_checked=0, update_seen="")
     finally: d.close()
 
 

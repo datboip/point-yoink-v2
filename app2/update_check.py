@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Help > Check for updates: asks GitHub for the newest release, only when the user clicks. Nothing is sent but the request."""
+"""Help > Check for updates asks GitHub for the newest release when the user clicks; the update notice (Preferences, on by default)
+asks once a day at start. Nothing is sent but the request."""
 import json
 import re
 import urllib.request
@@ -30,3 +31,16 @@ def compare(current, newest):
     a, b = parse(current), parse(newest)
     if a is None or b is None: return 'unknown'
     return 'newer' if b > a else 'current'
+
+
+DAY = 24 * 3600
+
+
+def due(prefs, now):
+    """The once-a-day look at start: on, and the last look was more than a day ago."""
+    return bool(prefs.get("update_notice", True)) and now - int(prefs.get("update_checked", 0) or 0) >= DAY
+
+
+def worth_telling(current, newest, seen):
+    """A newer release that the user has not been told about yet."""
+    return compare(current, newest) == "newer" and newest != seen

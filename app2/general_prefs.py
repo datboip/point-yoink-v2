@@ -5,11 +5,14 @@ settings. Each has a default here, so a missing file means the shipped behavior.
   default_look        "shaded" | "scan_color"   what the Build view shows when a project opens (2026-10-24: shaded)
   light_minutes       int                       the fill light asks "still using it?" after this many minutes
   timelapse_watermark bool                      the PointYoink mark on exported timelapses, on by default
-  open_last           bool                      start on the newest project instead of the Projects page"""
+  open_last           bool                      start on the newest project instead of the Projects page
+  update_notice       bool                      look for a newer release once a day at start and say so (on by default)
+  update_checked      int                       when it last looked (Unix time)
+  update_seen         str                       the newest release it already told the user about (no repeats)"""
 import json, os
 from pathlib import Path
 
-DEFAULTS = dict(default_look="shaded", light_minutes=5, timelapse_watermark=True, open_last=False)
+DEFAULTS = dict(default_look="shaded", light_minutes=5, timelapse_watermark=True, open_last=False, update_notice=True, update_checked=0, update_seen="")
 
 
 def _path():

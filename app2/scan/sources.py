@@ -35,17 +35,29 @@ def _refuse(what):
     raise RuntimeError("POINTYOINK_NO_DEVICE=1: %s refused (nothing is sent to the scanner)" % what)
 
 
+def other_scanner(dev=None):
+    """True when the camera at `dev` is known to belong to a scanner that is not a MIRACO (the RANGE)."""
+    from app2.scan.usb_mode import camera_model
+    return camera_model(dev or DEPTH_DEV) not in (None, "miraco")
+
+
+def _miraco_only(what):
+    if other_scanner(): raise RuntimeError("%s is another scanner, not a MIRACO: %s not sent" % (DEPTH_DEV, what))
+
+
 def set_ir_gain(g):
     """IR sensor gain (standard UVC control on the depth camera, 1..15). The scanner keeps exposure time on its own auto
     and refuses manual exposure, so gain is the brightness knob. Measured on a dark part: gain 4 gave about 2x the depth
     of the default 1; 15 clips the IR and loses depth again."""
     if no_device(): _refuse("IR gain")
+    _miraco_only("IR gain")
     # a timeout: a call stuck on a half-gone USB device would hold up every later gain and LED change
     subprocess.run(["v4l2-ctl", "-d", DEPTH_DEV, "--set-ctrl=gain=%d" % int(g)], capture_output=True, timeout=5)
 
 
 def fill_led(on):
     if no_device(): _refuse("fill LED")
+    _miraco_only("the fill light setting")
     set_fill_led(on)
 
 
@@ -194,9 +206,11 @@ class LiveSource(FrameSource):
         self.depth_dev = depth_dev
         self.proc = self.rgb = None; self.gen = 0; self.running = False; self.sink = None; self.seq = 0; self.pumps = []
 
-    def present(self): return os.path.exists(self.depth_dev)
+    def present(self): return os.path.exists(self.depth_dev) and not (self.default_argv and other_scanner(self.depth_dev))
 
     def gone_text(self):
+        if self.default_argv and os.path.exists(self.depth_dev) and other_scanner(self.depth_dev):
+            return "A Revopoint RANGE is plugged in. This version scans with the MIRACO only; RANGE support comes in PointYoink 2.0.7."
         return "Scanner disconnected. Connect the USB cable and choose PC mode on the scanner. We will reconnect automatically."
 
     def _pump(self, p, gen):               # never drop a raw frame; the session decides what to keep
@@ -254,6 +268,7 @@ class LiveSource(FrameSource):
 
     def restart(self):
         if self.default_argv and no_device(): _refuse("streaming from %s" % self.depth_dev)
+        if self.default_argv and other_scanner(self.depth_dev): raise RuntimeError("%s is another scanner, not a MIRACO" % self.depth_dev)
         self.device.stream_lost()
         self._stop_streams(wait=True); self.gen += 1; gen = self.gen
         self.proc = subprocess.Popen(self.depth_argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)

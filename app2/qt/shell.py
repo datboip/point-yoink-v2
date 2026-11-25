@@ -240,7 +240,7 @@ class MainWindow(QMainWindow):
 
     def _setup_menus(self):
         bar = self.menuBar(); bar.setNativeMenuBar(False); bar.setFixedHeight(28)
-        bar.setStyleSheet("QMenuBar {background:#20252c;color:#e6edf6;} QMenuBar::item:selected {background:#344254;} QMenu {background:#20252c;color:#e6edf6;} QMenu::item:selected {background:#344254;} QMenu::item:disabled {color:#687583;}")
+        bar.setStyleSheet("QMenuBar {background:#20252c;color:#e6edf6;} QMenuBar::item:selected {background:#344254;} QMenu {background:#20252c;color:#e6edf6;} QMenu::item:selected {background:#344254;} QMenu::item:disabled {color:#687583;} QMenu::separator {height:1px;background:#4a5563;margin:5px 10px;}")
         groups = {
             "File": (("workspace","Workspace"),("new","New scan"),("open","Open project"),("rename","Rename project"),("folder","Open project folder"),SEP,
                      ("projects_import","Import scanner projects"),("captures","Import screenshots and screen recordings"),SEP,
@@ -362,6 +362,27 @@ class MainWindow(QMainWindow):
             self.guide_card.dismiss()
             self.keys.hide(); self.scrim.hide()
             self.about_card.show(); self.about_card.raise_(); self._focus_changed(None, QApplication.focusWidget())
+
+    def auto_update_check(self, latest=None, now=None):
+        """At start: once a day (Preferences can turn it off), look for a newer release on a worker thread and say so once per
+        release, with a Download button. `latest` and `now` are test stand-ins."""
+        import threading, time as _t, webbrowser
+        from PySide6.QtCore import QTimer
+        from app2 import update_check, general_prefs as G
+        from app2.version import VERSION
+        now = _t.time() if now is None else now; prefs = G.load()
+        if not update_check.due(prefs, now): return False
+        G.save(update_checked=int(now)); found = []
+        worker = threading.Thread(target=lambda: found.append(update_check.latest(latest)), daemon=True, name="update-notice"); worker.start()
+        def poll():
+            if worker.is_alive(): return
+            timer.stop(); newest = found[0] if found else ""
+            if update_check.worth_telling(VERSION, newest, G.get("update_seen")):
+                G.save(update_seen=newest)
+                self.say("PointYoink %s is available (you have %s)." % (newest.lstrip("v"), VERSION), "info", secs=20,
+                         action=("Download", lambda: webbrowser.open(update_check.PAGE)))
+        timer = QTimer(self); timer.setInterval(200); timer.timeout.connect(poll); timer.start(); self._notice_timer = timer
+        return True
 
     def check_for_updates(self, latest=None):
         """Ask GitHub on a worker thread, then say what it found. `latest` is a test stand-in for the network call."""

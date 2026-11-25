@@ -242,6 +242,8 @@ def main(argv=None):
         w.move(area.center() - w.rect().center())
     w.show()
     if splash: splash.finish(w)
+    from PySide6.QtCore import QTimer as _QT
+    _QT.singleShot(5000, w.auto_update_check)              # the once-a-day "new version" notice (Preferences can turn it off)
     # Ctrl+C in the terminal or a plain kill: Finish (every side saved, the scanner left as found), no questions asked
     import signal
     from PySide6.QtCore import QTimer

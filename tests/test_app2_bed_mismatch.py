@@ -37,7 +37,7 @@ def test_bed_out_of_view_is_said_once_a_pass_after_it_was_found():
     for _ in range(5): assert b2._mismatch(st2, st2.sb, 1, None, 1, 1) is None
 
 
-def test_hits_off_the_camera_bed_drop_it_after_three_and_the_rim_follows_the_dots():
+def test_hits_off_the_camera_bed_drop_it_after_three_and_the_rim_follows_the_dots(monkeypatch):
     from app2.scan.bed_adapter import ScannerBed, SideState
     import bed as bedlib
     b = ScannerBed.__new__(ScannerBed); drops = []
@@ -55,6 +55,6 @@ def test_hits_off_the_camera_bed_drop_it_after_three_and_the_rim_follows_the_dot
     # the rim: a fresh disagreeing hit within 15 frames is drawn instead of the camera bed
     side = NS(ps=0, idx=70, bed=st); b.bed = None
     import app2.scan.bed_adapter as A
-    A._shape = lambda bed, x: 'shape'
+    monkeypatch.setattr(A, '_shape', lambda bed, x: 'shape')          # undone after the test (it leaked into test_bed_profiles)
     geo = ScannerBed.camera_geo(b, side, True); assert np.allclose(geo[2], far.centre)
     side.idx = 90; geo = ScannerBed.camera_geo(b, side, True); assert np.allclose(geo[2], cam['centre'])   # stale: back to the camera bed

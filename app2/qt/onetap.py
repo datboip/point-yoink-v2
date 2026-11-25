@@ -124,8 +124,9 @@ class OneTapDialog(QFrame):
         v=QVBoxLayout(self); v.setContentsMargins(26,20,26,16); v.setSpacing(8)
         title=QLabel('YOLO Yoink'); title.setFont(ui_font(20,QFont.Weight.DemiBold)); title.setFixedHeight(34); title.setAlignment(Qt.AlignmentFlag.AlignCenter); v.addWidget(title)
         tabs=QHBoxLayout(); tabs.setSpacing(6)
-        self.simple_b=button('Simple','seg'); self.advanced_b=button('Advanced','seg')
-        for tab in (self.simple_b,self.advanced_b):
+        self.simple_b=button('Simple','seg'); self.advanced_b=button('Advanced','seg'); self.compare_b=button('Compare','seg')
+        self.compare_b.setToolTip('Your part as built with each recipe so far, side by side')
+        for tab in (self.simple_b,self.advanced_b,self.compare_b):
             tab.setCheckable(True); tab.setFixedHeight(32); tabs.addWidget(tab)
         tabs.addStretch(1); v.addLayout(tabs)
         self.selector=QComboBox(); self.selector.setMaxVisibleItems(8); self.selector.setFixedHeight(36)
@@ -168,7 +169,12 @@ class OneTapDialog(QFrame):
         quiet_scrollbar(self.advanced_page.verticalScrollBar())
         advanced=QWidget(); av=QVBoxLayout(advanced); av.setContentsMargins(0,4,8,0); av.setSpacing(8)
         self.advanced_page.setWidget(advanced); self.pages.addWidget(self.advanced_page)
-        self.simple_b.clicked.connect(lambda:self.set_mode(False)); self.advanced_b.clicked.connect(lambda:self.set_mode(True))
+        # Compare: the user's own part, as each recipe built it, side by side (Ultra Yoink fills it with more)
+        self.compare_page=QScrollArea(); self.compare_page.setWidgetResizable(True); self.compare_page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        quiet_scrollbar(self.compare_page.verticalScrollBar())
+        cmp=QWidget(); self.compare_grid=QGridLayout(cmp); self.compare_grid.setContentsMargins(0,4,8,4); self.compare_grid.setSpacing(10)
+        self.compare_page.setWidget(cmp); self.pages.addWidget(self.compare_page)
+        self.simple_b.clicked.connect(lambda:self.set_mode(False)); self.advanced_b.clicked.connect(lambda:self.set_mode(True)); self.compare_b.clicked.connect(lambda:self.set_mode('compare'))
         self.controls=QFrame(); g=QGridLayout(self.controls); g.setContentsMargins(0,0,0,0); g.setSpacing(8)
         self.method=QComboBox()
         for label,key in [('Standard','tsdf'),('Points','points'),('Plus','plus')]: self.method.addItem(label,key)
@@ -228,6 +234,30 @@ class OneTapDialog(QFrame):
                 card.pic.setPixmap(fit_pix(pix)); card.setToolTip(card.toolTip().split('\nYour part')[0]+'\nYour part, built %s' % when(own[1]))
         if self.current: self._refresh_preview(self.current)
 
+    def _fill_compare(self):
+        """One card per recipe this project has a picture for: the picture big, its name and date, and Use this recipe."""
+        from PySide6.QtGui import QPixmap
+        from app2.recipe_pictures import key_of, when
+        while self.compare_grid.count():
+            w=self.compare_grid.takeAt(0).widget()
+            if w is not None: w.deleteLater()
+        names={key_of(k):(k,label) for k,label,_h in self.choices}
+        found=sorted(self.pictures.items(),key=lambda kv:-kv[1][1])          # newest first
+        if not found:
+            empty=QLabel('Nothing to compare yet.\n\nEach recipe you build on this part leaves a picture here. Ultra Yoink builds several in one go.')
+            empty.setWordWrap(True); empty.setAlignment(Qt.AlignmentFlag.AlignCenter); empty.setStyleSheet('color:#8b95a1;font-size:14px;padding:30px')
+            self.compare_grid.addWidget(empty,0,0); return
+        for i,(pk,(path,t)) in enumerate(found):
+            key,label=names.get(pk,('custom' if pk=='custom' else 'saved:'+pk[6:] if pk.startswith('saved-') else pk,pk.replace('-',' ').title()))
+            card=QFrame(); card.setStyleSheet('QFrame {background:#20252c;border:1px solid #38434f;border-radius:8px;}'); cv=QVBoxLayout(card); cv.setContentsMargins(8,8,8,8); cv.setSpacing(4)
+            pic=QLabel(); pic.setPixmap(QPixmap(path).scaled(300,200,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)); pic.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            pic.setStyleSheet('border:0'); pic.setMinimumHeight(140)
+            title=QLabel('<b>%s</b><br><span style="color:#8b95a1">built %s</span>' % (label,when(t))); title.setStyleSheet('border:0')
+            use=button('Use this recipe','default'); use.clicked.connect(lambda checked=False,k=key:(self.set_mode(False),self.pick(k,True)))
+            cv.addWidget(pic,1); cv.addWidget(title); cv.addWidget(use)
+            self.compare_grid.addWidget(card,i//2,i%2)
+        self.compare_grid.setColumnStretch(0,1); self.compare_grid.setColumnStretch(1,1)
+
     def _lay_cards(self):
         """Presets and saved ones in two columns, then a line, then Custom across the bottom."""
         for w in [*self.profile_cards.values(), self.card_line]: self.card_grid.removeWidget(w)
@@ -239,10 +269,13 @@ class OneTapDialog(QFrame):
         self.card_grid.setRowStretch(row+2,1)
 
     def set_mode(self, advanced):
-        self.pages.setCurrentIndex(1 if advanced else 0)
-        self.simple_b.setChecked(not advanced); self.advanced_b.setChecked(advanced)
+        """False: Simple, True: Advanced, 'compare': the Compare tab."""
+        mode='compare' if advanced=='compare' else ('advanced' if advanced else 'simple'); advanced=mode=='advanced'
+        self.pages.setCurrentIndex({'simple':0,'advanced':1,'compare':2}[mode])
+        self.simple_b.setChecked(mode=='simple'); self.advanced_b.setChecked(advanced); self.compare_b.setChecked(mode=='compare')
         self.preset_row_widget.setVisible(advanced); self.save_row_widget.setVisible(advanced); self.ultra_b.setVisible(not advanced)
         self.hint.setVisible(advanced)
+        if mode=='compare': self._fill_compare()
         self.fix_size(); self._refresh_hint()
         if self.parentWidget() is not None:
             parent=self.parentWidget(); self.move((parent.width()-self.width())//2,max(8,(parent.height()-self.height())//2))
@@ -276,6 +309,7 @@ class OneTapDialog(QFrame):
     def payload(self): return {'preset':self.current,'fragment':store.recipe_fragment(self.settings())}
 
     def _refresh_preview(self,key):
+        if self.pages.currentIndex()==2: self.preview.hide(); return       # Compare shows the pictures themselves
         name='today' if key=='auto' else key
         pic=os.path.join(os.path.dirname(__file__),'assets','presets','%s.png' % name)
         from app2.recipe_pictures import key_of

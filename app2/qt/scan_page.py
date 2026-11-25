@@ -851,15 +851,16 @@ class ScanPage(QWidget):
             if settled==col:break
             col=settled
         side_m=self.sides.layout().contentsMargins();control_m=self.controls.layout().contentsMargins()
+        frame=self.sides.contentsMargins();frame_w=frame.left()+frame.right()      # the panel's own border (the theme draws 1 px a side)
         # Resolve the setup button rows before their minimum width sets the
         # sidebar. Otherwise its first camera click shrinks the sidebar.
-        self.controls.fit_width(sides_w-side_m.left()-side_m.right()-self.controls_scroll.verticalScrollBar().sizeHint().width())
+        self.controls.fit_width(sides_w-frame_w-side_m.left()-side_m.right()-self.controls_scroll.verticalScrollBar().sizeHint().width())
         self.controls.layout().activate();self.controls.updateGeometry()
         framing_tools=(self.controls.frame_range,self.controls.range_undo)
         framing_min=sum(max(tool.sizeHint().width(),tool.minimumWidth()) for tool in framing_tools)+self.controls.framing_row.layout().spacing()*(len(framing_tools)-1)+control_m.left()+control_m.right()
         # Advanced's setup rows count while Simple hides them, so switching never resizes the column (or the 3D view)
-        sides_w=max(sides_w,max(framing_min,getattr(self,'full_controls_min',0),self.controls.minimumSizeHint().width())+self.controls_scroll.verticalScrollBar().sizeHint().width()+side_m.left()+side_m.right())
-        control_w=sides_w-side_m.left()-side_m.right()-self.controls_scroll.verticalScrollBar().sizeHint().width()
+        sides_w=max(sides_w,max(framing_min,getattr(self,'full_controls_min',0),self.controls.minimumSizeHint().width())+self.controls_scroll.verticalScrollBar().sizeHint().width()+side_m.left()+side_m.right()+frame_w)
+        control_w=sides_w-frame_w-side_m.left()-side_m.right()-self.controls_scroll.verticalScrollBar().sizeHint().width()
         self.controls.fit_width(control_w);self.controls.setMinimumHeight(self.controls.height_for(control_w))
         self.controls.layout_dirty=False
         ir_h=int(col*ratio);small_w=(col-GAP)//2

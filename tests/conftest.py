@@ -15,6 +15,18 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def own_config(tmp_path, monkeypatch):
+    """Each test its own empty config folder: a shared one let earlier tests' step timings, last export format and saved
+    beds leak into later tests (5 tests failed only in the full run). Same for the Wi-Fi flags."""
+    monkeypatch.setenv("POINTYOINK_CONFIG", str(tmp_path / "pyk-config" / "config.json"))
+    from app2.scan import usb_mode
+    from app2.qt import link_status
+    monkeypatch.setattr(usb_mode, "wifi_alive", False)
+    monkeypatch.setattr(link_status, "state", dict(link_status.state, wifi=None, code=None, rate=0.0, t=0.0))   # no Wi-Fi transfer left over
+    yield
+
+
+@pytest.fixture(autouse=True)
 def advanced_controls(request, monkeypatch):
     """Most page tests drive every control, so pages open in Advanced (whatever config a test points at); a test of
     Simple itself marks simple_level."""
